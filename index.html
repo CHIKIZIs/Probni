@@ -1,0 +1,1699 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мини-Выживание: Эра Питомцев и Магии v5.7 (Измерение Пустоты)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        :root {
+            --orange: #ff9f43; --blue: #00d2d3; --red: #ff4757; --green: #2ecc71; --white: #fff;
+            --panel-bg: #222; --gold: #f1c40f; --diamond: #00ffff; --ice: #74b9ff; --lava: #ff4d00;
+            --purple: #9b59b6; --toxic: #1abc9c; --void: #8e44ad;
+        }
+        body { 
+            margin: 0; overflow: hidden; background-color: #111; 
+            font-family: 'Press Start 2P', monospace; color: white; user-select: none; 
+            image-rendering: pixelated;
+        }
+        canvas { display: block; image-rendering: pixelated; }
+        
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+        
+        .glass-panel {
+            background: var(--panel-bg); border: 4px solid #fff;
+            pointer-events: auto; box-shadow: 6px 6px 0px rgba(0, 0, 0, 1);
+        }
+
+        #inventory { position: absolute; top: 20px; left: 20px; padding: 15px; width: 340px; max-height: calc(100vh - 100px); overflow-y: auto; }
+        .inv-category { font-size: 10px; color: var(--orange); margin-top: 15px; border-bottom: 2px dashed #555; padding-bottom: 5px; text-transform: uppercase; }
+        .inv-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+        
+        .inv-slot { 
+            width: 60px; height: 60px; background: #333; 
+            display: flex; align-items: center; justify-content: center; position: relative;
+            border: 2px solid #666; box-shadow: inset -3px -3px 0 rgba(0,0,0,0.5);
+            cursor: pointer; transition: all 0.1s ease;
+        }
+        .inv-slot:hover { border-color: var(--blue); transform: scale(1.05); background: #444; }
+        .slot-count { position: absolute; bottom: 4px; right: 4px; font-size: 8px; color: #fff; text-shadow: 2px 2px 0 #000;}
+        .item-icon { width: 40px; height: 40px; image-rendering: pixelated; filter: drop-shadow(2px 2px 0 #000); }
+
+        #crafting { position: absolute; top: 20px; right: 20px; padding: 15px; width: 380px; max-height: calc(100vh - 240px); overflow-y: auto;}
+        .craft-tabs { display: flex; gap: 4px; margin-bottom: 15px; flex-wrap: wrap;}
+        .tab-btn { flex: 1; padding: 10px 4px; font-size: 8px; background: #444; border: 2px solid #222; color: #ccc; cursor: pointer; transition: 0.1s; font-family: inherit; min-width: 60px; box-shadow: 2px 2px 0 #000;}
+        .tab-btn.active { background: var(--blue); color: #111; border-color: #fff;}
+        
+        .craft-list-content { display: none; flex-direction: column; gap: 8px; }
+        .craft-list-content.active { display: flex; }
+        
+        .craft-btn { 
+            padding: 10px; background: #333; 
+            border: 2px solid #555; border-left: 6px solid var(--blue); color: white; 
+            cursor: pointer; text-align: left; font-family: inherit; font-size: 9px; line-height: 14px; transition: all 0.1s; display: flex; align-items: center; gap: 10px;
+            box-shadow: 3px 3px 0 #000;
+        }
+        .craft-btn:hover { background: #444; transform: translateX(-5px); }
+        .craft-btn:disabled { opacity: 0.5; border-left-color: var(--red); cursor: not-allowed; }
+        .craft-icon { width: 32px; height: 32px; image-rendering: pixelated; }
+
+        .bestiary-item { width: 70px; height: 80px; background: #333; text-align: center; border: 2px solid #555; font-size: 8px; padding: 5px; line-height: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: inset -2px -2px 0 rgba(0,0,0,0.5);}
+        .bestiary-item img { width: 40px; height: 40px; filter: brightness(0%); opacity: 0.3; transition: 0.2s;}
+        .bestiary-item.unlocked img { filter: none; opacity: 1; }
+        .bestiary-item.unlocked { border-color: var(--gold); background: #444; }
+
+        #tooltip { position: fixed; background: #111; padding: 10px; font-size: 8px; pointer-events: none; display: none; z-index: 1000; border: 2px solid #fff; box-shadow: 4px 4px 0 #000; line-height: 14px; }
+        #world-alert { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); font-size: 16px; color: white; text-shadow: 4px 4px 0 #000, -2px -2px 0 var(--blue); opacity: 0; transition: opacity 0.2s steps(5); pointer-events: none;}
+        #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 24px; text-align: center; display: none; background: #111; padding: 40px; border: 4px solid var(--red); box-shadow: 10px 10px 0 #000; z-index: 100;}
+        #btn-interact { background: var(--purple); width: 100%; text-align: center; margin-top: 15px; display: none; padding: 15px; cursor: pointer; border: 3px solid #fff; color: white; font-family: inherit; font-size: 10px; box-shadow: 4px 4px 0 #000;}
+        #btn-interact:hover { background: #8e44ad; }
+
+        #creation-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #222; z-index: 1500; display: none; }
+        #customization-modal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2000; padding: 30px; text-align: center; width: 340px; display: none; }
+        .custom-row { margin-bottom: 20px; text-align: left; }
+        .custom-row label { font-size: 10px; color: #ccc; text-shadow: 1px 1px 0 #000; }
+        .custom-row input[type="color"] { width: 100%; height: 40px; margin-top: 8px; border: 2px solid #fff; cursor: pointer; background: #000; }
+
+        #loading-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background: #000; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 80px; }
+        #loading-text { font-family: 'Press Start 2P', monospace; color: white; font-size: 24px; text-shadow: 4px 4px 0 #000, -2px -2px 0 var(--blue); animation: blink 1s infinite; }
+        
+        #pause-screen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 5000; justify-content: center; align-items: center; flex-direction: column; pointer-events: auto; }
+        #map-screen { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px; z-index: 4000; flex-direction: column; align-items: center; background: #222; border: 4px solid var(--blue); box-shadow: 10px 10px 0 #000; pointer-events: auto; }
+        
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #111; border-left: 2px solid #333; }
+        ::-webkit-scrollbar-thumb { background: var(--blue); border: 2px solid #111; }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">
+        <div id="loading-text">ЗАГРУЗКА МИРА...</div>
+    </div>
+
+    <div id="creation-bg"></div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="pause-screen">
+        <div style="font-size: 32px; color: white; text-shadow: 4px 4px 0 #000, -2px -2px 0 var(--orange); animation: blink 2s infinite;">ИГРА НА ПАУЗЕ</div>
+        <div style="font-size: 10px; color: #ccc; margin-top: 15px;">Нажмите P или ESC чтобы продолжить</div>
+        <button class="craft-btn" onclick="togglePause()" style="font-size: 14px; margin-top: 30px; padding: 15px; justify-content: center; min-width: 200px;">ПРОДОЛЖИТЬ</button>
+    </div>
+
+    <div id="customization-modal" class="glass-panel">
+        <h2 style="margin-top: 0; color: var(--blue); font-size: 16px; text-shadow: 2px 2px 0 #000;">СОЗДАНИЕ ПЕРСОНАЖА</h2>
+        <div class="custom-row"><label>Цвет кожи:</label><input type="color" id="skin-color" value="#f1c40f"></div>
+        <div class="custom-row"><label>Цвет глаз:</label><input type="color" id="eye-color" value="#2980b9"></div>
+        <div class="custom-row"><label>Цвет одежды:</label><input type="color" id="shirt-color" value="#3498db"></div>
+        <button class="craft-btn" onclick="startGame()" style="width: 100%; justify-content: center; font-size: 12px; margin-top: 20px; padding: 15px;">НАЧАТЬ ИГРУ</button>
+    </div>
+
+    <div id="ui-layer">
+        <div id="secret-btn" style="position: absolute; bottom: 0; right: 0; width: 60px; height: 60px; pointer-events: auto; z-index: 9999;" onclick="checkCreativeCode()"></div>
+
+        <button class="craft-btn" onclick="toggleBestiary()" style="position: absolute; top: 20px; left: 380px; pointer-events: auto;">🏆 БЕСТИАРИЙ</button>
+        <button class="craft-btn" onclick="toggleMap()" style="position: absolute; top: 20px; left: 540px; pointer-events: auto;">🗺 КАРТА (M)</button>
+        <button class="craft-btn" onclick="togglePause()" style="position: absolute; top: 20px; left: 690px; pointer-events: auto; border-left-color: var(--orange);">⏸ ПАУЗА (P)</button>
+        
+        <div id="map-screen">
+            <h2 style="color: var(--blue); font-size: 16px; margin-top: 0;">ГЛОБАЛЬНАЯ КАРТА</h2>
+            <div style="font-size: 10px; color: #aaa; margin-bottom: 15px;">ЛКМ: Установить/Снять метку</div>
+            <div style="border: 4px solid #fff; box-shadow: 4px 4px 0 #000;">
+                <canvas id="fullscreen-map" width="600" height="600" style="width: 600px; height: 600px; cursor: crosshair; display: block;"></canvas>
+            </div>
+            <button onclick="toggleMap()" class="craft-btn" style="width: 100%; justify-content: center; margin-top: 15px;">ЗАКРЫТЬ (M)</button>
+        </div>
+
+        <div id="bestiary-panel" class="glass-panel" style="display:none; position:absolute; top:10%; left:50%; transform:translateX(-50%); width:460px; height:80%; padding:20px; z-index:3000;">
+            <h2 style="text-align:center; color:var(--gold); font-size:14px; text-shadow: 2px 2px 0 #000;">ТРОФЕИ И ДОСТИЖЕНИЯ</h2>
+            <div id="bestiary-grid" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center; overflow-y:auto; height:85%; padding-top:10px;"></div>
+            <button onclick="toggleBestiary()" class="craft-btn" style="position:absolute; bottom:20px; left:20px; width:calc(100% - 40px); justify-content:center;">ЗАКРЫТЬ</button>
+        </div>
+
+        <div id="chest-panel" class="glass-panel" style="display:none; position:absolute; top:20%; left:50%; transform:translateX(-50%); width:340px; padding:20px; z-index:3000;">
+            <h2 style="text-align:center; color:var(--gold); font-size:12px; text-shadow: 2px 2px 0 #000;">СУНДУК</h2>
+            <div style="font-size: 8px; text-align: center; color: #ccc; margin-bottom: 10px;">(Кликните по предмету в инвентаре)</div>
+            <div id="chest-grid" class="inv-grid"></div>
+            <button onclick="closeChest()" class="craft-btn" style="width:100%; justify-content:center; margin-top:20px;">ЗАКРЫТЬ</button>
+        </div>
+
+        <div id="inventory" class="glass-panel">
+            <div style="text-align: center; font-size: 12px; text-shadow: 2px 2px 0 #000;">ИНВЕНТАРЬ</div>
+            <div style="font-size: 8px; text-align: center; color: #aaa; margin-top: 10px;">ЛКМ на предмет для исп.</div>
+            <div id="inv-resources" class="inv-category">Ресурсы</div><div class="inv-grid" id="grid-resources"></div>
+            <div id="inv-food" class="inv-category">Еда и Медицина</div><div class="inv-grid" id="grid-food"></div>
+            <div id="inv-gear" class="inv-category">Снаряжение</div><div class="inv-grid" id="grid-gear"></div>
+            <div style="margin-top:20px; border-top: 2px solid #555; padding-top: 15px;">
+                <div style="font-size: 9px; color: #ccc; margin-bottom: 8px;">Оружие: <span id="inv-equip" style="color:var(--blue);">Руки</span></div>
+                <div style="font-size: 9px; color: #ccc;">Броня: <span id="inv-clothes" style="color:var(--orange);">Нет</span></div>
+            </div>
+        </div>
+
+        <div id="crafting" class="glass-panel">
+            <div style="text-align: center; font-size: 12px; text-shadow: 2px 2px 0 #000; margin-bottom: 15px;">КРАФТ</div>
+            <div class="craft-tabs">
+                <button class="tab-btn active" id="tab-btn-tool" onclick="setCraftTab('tool')">ИНСТР</button>
+                <button class="tab-btn" id="tab-btn-armor" onclick="setCraftTab('armor')">БРОНЯ</button>
+                <button class="tab-btn" id="tab-btn-survival" onclick="setCraftTab('survival')">ВЫЖИВ</button>
+                <button class="tab-btn" id="tab-btn-build" onclick="setCraftTab('build')">СТРОЙ</button>
+                <button class="tab-btn" id="tab-btn-workbench" onclick="setCraftTab('workbench')" style="display:none; color: #f1c40f;">ВЕРСТАК</button>
+            </div>
+            
+            <div id="tab-tool" class="craft-list-content active">
+                <button class="craft-btn" onclick="craft('axe')"><img id="icon-craft-axe" class="craft-icon"> Топор<br>(10 Дер, 5 Кам)</button>
+                <button class="craft-btn" onclick="craft('pickaxe')"><img id="icon-craft-pickaxe" class="craft-icon"> Кирка<br>(10 Дер, 10 Кам)</button>
+                <button class="craft-btn" onclick="craft('spear')"><img id="icon-craft-spear" class="craft-icon"> Копье<br>(15 Дер, 2 Кам, 5 Вол)</button>
+            </div>
+            <div id="tab-armor" class="craft-list-content">
+                <button class="craft-btn" onclick="craft('armor_1')"><img id="icon-craft-armor_1" class="craft-icon"> Кож. Броня<br>(5 Шкур)</button>
+                <button class="craft-btn" onclick="craft('armor_2')"><img id="icon-craft-armor_2" class="craft-icon"> Кост. Броня<br>(10 Кост, 5 Шкур)</button>
+                <button class="craft-btn" onclick="craft('arctic_coat')" style="border-left-color: var(--ice);"><img id="icon-craft-arctic_coat" class="craft-icon"> Аркт. Шуба<br>(10 Шкур, 5 Крист)</button>
+                <button class="craft-btn" onclick="craft('gas_mask')" style="border-left-color: var(--toxic);"><img id="icon-craft-gas_mask" class="craft-icon"> Противогаз<br>(5 Шкур, 5 Вол, 2 Жел)</button>
+                <button class="craft-btn" onclick="craft('headlamp')" style="border-left-color: var(--gold);"><img id="icon-craft-headlamp" class="craft-icon"> Налобный Фонарь<br>(5 Жел, 10 Вол, 2 Крист)</button>
+            </div>
+            <div id="tab-survival" class="craft-list-content">
+                <button class="craft-btn" onclick="craft('bandage')"><img id="icon-craft-bandage" class="craft-icon"> Бинт (+30 ХП)<br>(10 Вол)</button>
+                <button class="craft-btn" onclick="craft('empty_bottle')"><img id="icon-craft-empty_bottle" class="craft-icon"> Бутылка<br>(5 Дер)</button>
+                <button class="craft-btn" onclick="craft('ice_drink')" style="border-left-color: var(--ice);"><img id="icon-craft-ice_drink" class="craft-icon"> Лед. Напиток<br>(1 Вода, 2 Крист, 2 Ягоды)</button>
+                <button class="craft-btn" onclick="craft('torch')" style="border-left-color: var(--orange);"><img id="icon-craft-torch" class="craft-icon"> Факел<br>(5 Дер, 2 Вол)</button>
+                <button class="craft-btn" onclick="craft('campfire')"><img id="icon-craft-campfire" class="craft-icon"> Костер<br>(15 Дер, 10 Кам)</button>
+                <button class="craft-btn" onclick="craft('workbench')" style="border-left-color: #f1c40f;"><img id="icon-craft-workbench" class="craft-icon"> Верстак<br>(20 Дер, 10 Кам)</button>
+                <button class="craft-btn" id="btn-cook" onclick="craft('cook')" style="border-left-color: var(--orange);"><img id="icon-craft-cookedMeat" class="craft-icon"> Жарить пищу<br>(Мясо/Гриб у костра)</button>
+            </div>
+            <div id="tab-build" class="craft-list-content">
+                <button class="craft-btn" onclick="craft('raft')"><img id="icon-craft-raft" class="craft-icon"> Плот<br>(20 Дер, 10 Вол)</button>
+                <button class="craft-btn" onclick="craft('chest')"><img id="icon-craft-chest" class="craft-icon"> Сундук<br>(15 Дер, 5 Кам)</button>
+                <button class="craft-btn" onclick="craft('planter')" style="border-left-color: var(--green);"><img id="icon-craft-planter" class="craft-icon"> Грядка<br>(10 Дер, 5 Ягод)</button>
+                <button class="craft-btn" onclick="craft('wood_wall')"><img id="icon-craft-wood_wall" class="craft-icon"> Дер. Стена<br>(10 Дер)</button>
+                <button class="craft-btn" onclick="craft('wood_door')"><img id="icon-craft-wood_door" class="craft-icon"> Дер. Дверь<br>(15 Дер)</button>
+                <button class="craft-btn" onclick="craft('stone_wall')" style="border-left-color: #95a5a6;"><img id="icon-craft-stone_wall" class="craft-icon"> Кам. Стена<br>(10 Кам)</button>
+                <button class="craft-btn" onclick="craft('wood_support')"><img id="icon-craft-wood_support" class="craft-icon"> Дер. Опора<br>(10 Дер, от обвалов)</button>
+            </div>
+            <div id="tab-workbench" class="craft-list-content">
+                <div style="font-size:8px; color:#aaa; text-align:center; margin-bottom:5px;">У верстака</div>
+                <button class="craft-btn" onclick="craft('sword')"><img id="icon-craft-sword" class="craft-icon"> Меч<br>(15 Дер, 15 Кам)</button>
+                <button class="craft-btn" onclick="craft('bow')"><img id="icon-craft-bow" class="craft-icon"> Лук<br>(15 Дер, 10 Вол)</button>
+                <button class="craft-btn" onclick="craft('arrow')"><img id="icon-craft-arrow" class="craft-icon"> 5x Стрел<br>(5 Дер, 1 Кам)</button>
+                <button class="craft-btn" onclick="craft('iron_pickaxe')"><img id="icon-craft-iron_pickaxe" class="craft-icon"> Жел. Кирка<br>(10 Дер, 10 Жел)</button>
+                <button class="craft-btn" onclick="craft('storm_pickaxe')" style="border-left-color: var(--purple);"><img id="icon-craft-storm_pickaxe" class="craft-icon"> Кирка Бури<br>(1 Жел.Кирка, 3 Др.Пыли)</button>
+                <button class="craft-btn" onclick="craft('fire_staff')" style="border-left-color: var(--lava);"><img id="icon-craft-fire_staff" class="craft-icon"> Посох Огня<br>(20 Дер, 10 Др.Пыли)</button>
+                <button class="craft-btn" onclick="craft('lightning_staff')" style="border-left-color: #00ffff;"><img id="icon-craft-lightning_staff" class="craft-icon"> Посох Молний<br>(5 Зол, 10 Алм, 5 Пыли)</button>
+                <button class="craft-btn" onclick="craft('grappling_hook')"><img id="icon-craft-grappling_hook" class="craft-icon"> Крюк-кошка<br>(10 Жел, 10 Вол)</button>
+                <button class="craft-btn" onclick="craft('iron_sword')"><img id="icon-craft-iron_sword" class="craft-icon"> Жел. Меч<br>(10 Дер, 15 Жел)</button>
+                <button class="craft-btn" onclick="craft('ice_sword')" style="border-left-color: var(--ice);"><img id="icon-craft-ice_sword" class="craft-icon"> Лед. Меч<br>(10 Мерз.Дер, 10 Крист)</button>
+                <button class="craft-btn" onclick="craft('diamond_sword')" style="border-left-color: var(--diamond);"><img id="icon-craft-diamond_sword" class="craft-icon"> Алмазный Меч<br>(15 Алм, 5 Зол)</button>
+                <button class="craft-btn" onclick="craft('armor_3')" style="border-left-color: var(--diamond);"><img id="icon-craft-armor_3" class="craft-icon"> Алмазная Броня<br>(20 Алм, 10 Зол)</button>
+                <button class="craft-btn" onclick="craft('portal')" style="border-left-color: var(--void);"><img id="icon-craft-portal" class="craft-icon"> Врата Пустоты<br>(20 Пыли, 20 Алм, 20 Зол, 20 Крист)</button>
+            </div>
+
+            <button id="btn-interact" onclick="interact()">ВЗАИМОДЕЙСТВОВАТЬ</button>
+        </div>
+        <div id="world-alert"></div>
+    </div>
+
+    <div id="game-over">
+        <div id="death-cause" style="margin-bottom: 30px; text-shadow: 4px 4px 0 red;">ВЫ УМЕРЛИ</div>
+        <button class="craft-btn" onclick="location.reload()" style="font-size: 14px; text-align: center; width: 100%; justify-content: center; padding: 20px;">Возродиться</button>
+    </div>
+
+    <div id="tooltip"></div>
+
+<script>
+    window.addEventListener('load', () => {
+        setTimeout(() => {
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('creation-bg').style.display = 'block';
+            document.getElementById('customization-modal').style.display = 'block';
+        }, 1500); 
+    });
+
+    window.addEventListener('beforeunload', function (e) {
+        if(gameRunning && !isGameOver) { e.preventDefault(); e.returnValue = ''; }
+    });
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const darkCanv = document.createElement('canvas');
+    const dCtx = darkCanv.getContext('2d');
+    
+    // Предварительно отрендеренная карта для производительности
+    const mapCanvas = document.createElement('canvas');
+    mapCanvas.width = 600; mapCanvas.height = 600;
+    const mapCtx = mapCanvas.getContext('2d');
+
+    ctx.imageSmoothingEnabled = false; dCtx.imageSmoothingEnabled = false; mapCtx.imageSmoothingEnabled = false;
+
+    function resize() { 
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight; 
+        darkCanv.width = canvas.width; darkCanv.height = canvas.height;
+        ctx.imageSmoothingEnabled = false;
+    }
+    window.addEventListener('resize', resize); resize();
+
+    const ZOOM = 1.6;
+    let camera = { x: 0, y: 0 }; let time = 0; let screenShake = 0; let gameRunning = false; let respawnQueue = []; let currentChest = null;
+    let isPaused = false; let showMap = false; let markers = [];
+    
+    const keys = { w: false, a: false, s: false, d: false, e: false };
+    const mouse = { x: 0, y: 0, clicked: false, rightClicked: false };
+
+    window.addEventListener('keydown', e => { 
+        let k = e.key.toLowerCase();
+        if(keys.hasOwnProperty(k)) keys[k] = true; 
+        if(k === 'e') interact(); 
+        if(k === 'p' || e.key === 'Escape') togglePause();
+        if(k === 'm') toggleMap();
+    });
+    window.addEventListener('keyup', e => { let k = e.key.toLowerCase(); if(keys.hasOwnProperty(k)) keys[k] = false; });
+    window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+    window.addEventListener('mousedown', e => { if(e.button === 0) mouse.clicked = true; if(e.button === 2) mouse.rightClicked = true; });
+    window.addEventListener('mouseup', e => { if(e.button === 0) mouse.clicked = false; if(e.button === 2) mouse.rightClicked = false; }); 
+    window.addEventListener('contextmenu', e => e.preventDefault());
+
+    // Логика кликов по глобальной карте (Метки)
+    document.getElementById('fullscreen-map').addEventListener('mousedown', function(e) {
+        if (!showMap) return;
+        const rect = this.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+        
+        let wx = (clickX / 600) * worlds.overworld.size;
+        let wy = (clickY / 600) * worlds.overworld.size;
+        
+        let removed = false;
+        for(let i=0; i<markers.length; i++) {
+            let dx = markers[i].x - wx;
+            let dy = markers[i].y - wy;
+            if(Math.sqrt(dx*dx + dy*dy) < 300) { 
+                markers.splice(i, 1);
+                removed = true;
+                break;
+            }
+        }
+        if(!removed) markers.push({x: wx, y: wy});
+    });
+
+    function togglePause() {
+        if(!gameRunning || isGameOver || showMap) return;
+        isPaused = !isPaused;
+        document.getElementById('pause-screen').style.display = isPaused ? 'flex' : 'none';
+        if(isPaused) { keys.w = false; keys.a = false; keys.s = false; keys.d = false; }
+    }
+
+    function toggleMap() {
+        if(!gameRunning || isGameOver || isPaused) return;
+        showMap = !showMap;
+        document.getElementById('map-screen').style.display = showMap ? 'flex' : 'none';
+        if(showMap) { keys.w = false; keys.a = false; keys.s = false; keys.d = false; }
+    }
+
+    function startGame() {
+        player.skinColor = document.getElementById('skin-color').value;
+        player.eyeColor = document.getElementById('eye-color').value;
+        player.shirtColor = document.getElementById('shirt-color').value;
+        document.getElementById('creation-bg').style.display = 'none';
+        document.getElementById('customization-modal').style.display = 'none';
+        document.getElementById('ui-layer').style.display = 'block';
+        gameRunning = true; 
+    }
+
+    function checkCreativeCode() {
+        let code = prompt("Доступ к консоли разработчика. Введите код:");
+        if (code === "08694519") {
+            player.isCreative = !player.isCreative;
+            if (player.isCreative) {
+                showMsg("CREATIVE АКТИВИРОВАН! (БЕССМЕРТИЕ И РЕСУРСЫ)");
+                // Выдаем все предметы по 999 штук
+                Object.keys(itemData).forEach(key => {
+                    player.inventory[key] = 999;
+                });
+                updateUI();
+            } else {
+                showMsg("CREATIVE ОТКЛЮЧЕН");
+            }
+        } else if (code !== null && code !== "") {
+            showMsg("НЕВЕРНЫЙ КОД");
+        }
+    }
+
+    function pseudoRandom(x, y) { let n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453; return n - Math.floor(n); }
+    function drawP(xCtx, x, y, w, h, fill, stroke='#000', lw=2) { xCtx.fillStyle = fill; xCtx.fillRect(x, y, w, h); if(stroke) { xCtx.lineWidth = lw; xCtx.strokeStyle = stroke; xCtx.strokeRect(x, y, w, h); } }
+
+    const iconCache = {};
+    function getGeneratedIcon(key) {
+        if(iconCache[key]) return iconCache[key];
+        const c = document.createElement('canvas'); c.width = 64; c.height = 64; const x = c.getContext('2d');
+        x.imageSmoothingEnabled = false; x.translate(32, 32);
+        
+        if(key === 'wood') { drawP(x, -16, -20, 12, 40, '#8d6e63'); drawP(x, 4, -20, 12, 40, '#6d4c41'); }
+        else if(key === 'frozen_wood') { drawP(x, -16, -20, 12, 40, '#74b9ff'); drawP(x, 4, -20, 12, 40, '#0984e3'); }
+        else if(key === 'stone') { drawP(x, -15, -15, 20, 20, '#95a5a6'); drawP(x, -5, -5, 20, 20, '#7f8c8d'); }
+        else if(key === 'fibers') { drawP(x, -10, -20, 8, 40, '#2ecc71'); drawP(x, 2, -10, 8, 30, '#27ae60'); }
+        else if(key === 'pelt') { drawP(x, -20, -15, 40, 30, '#e67e22'); drawP(x, -10, -5, 20, 10, '#d35400', ''); }
+        else if(key === 'bone') { drawP(x, -20, -4, 40, 8, '#fff'); drawP(x, -24, -8, 8, 8, '#fff'); drawP(x, -24, 0, 8, 8, '#fff'); drawP(x, 16, -8, 8, 8, '#fff'); drawP(x, 16, 0, 8, 8, '#fff'); }
+        else if(key === 'iron' || key === 'gold' || key === 'diamond' || key === 'ancient_dust') { 
+            let cC = key==='iron'?'#bdc3c7':(key==='gold'?'#f1c40f':(key==='diamond'?'#00ffff':'#9b59b6'));
+            drawP(x, -15,-10, 30, 20, cC); drawP(x, -10,-5, 20, 5, key==='ancient_dust'?'#8e44ad':'#fff', ''); 
+        }
+        else if(key === 'ice_crystal') { drawP(x, -10,-15, 20, 30, '#74b9ff'); drawP(x, -5,-5, 10, 10, '#fff', ''); }
+        else if(key === 'shark_scale') { drawP(x, -12,-15, 24, 30, '#636e72'); drawP(x, -6,-5, 12, 10, '#b2bec3', ''); }
+        else if(key === 'blubber') { drawP(x, -15,-15, 30, 30, '#ffeaa7'); drawP(x, -5,-5, 10, 10, '#fff', ''); }
+        else if(key === 'water_bottle' || key === 'empty_bottle' || key === 'ice_drink') { drawP(x, -10,-10, 20, 25, 'rgba(255,255,255,0.7)'); if(key==='water_bottle') drawP(x, -6, 0, 12, 11, '#3498db', ''); else if(key==='ice_drink') drawP(x, -6, -4, 12, 15, '#74b9ff', ''); drawP(x, -6,-16, 12, 6, '#8d6e63'); }
+        else if(key === 'meat' || key === 'cookedMeat') { drawP(x, -16,-12, 32, 24, key==='meat'?'#e74c3c':'#8d6e63'); drawP(x, -6,-4, 12, 8, '#ecf0f1', ''); }
+        else if(key === 'mushroom' || key === 'cookedMushroom') { drawP(x, -12, 0, 24, 15, key==='mushroom'?'#fff':'#bdc3c7'); drawP(x, -20,-15, 40, 15, key==='mushroom'?'#e74c3c':'#8d6e63'); if(key==='mushroom'){drawP(x, -10,-10, 6,6, '#fff',''); drawP(x, 4,-12, 6,6, '#fff','');} }
+        else if(key === 'berries') { drawP(x, -12,-8, 10, 10, '#e74c3c'); drawP(x, 2,-4, 10, 10, '#e74c3c'); drawP(x, -4, 4, 10, 10, '#e74c3c'); }
+        else if(key === 'axe' || key === 'iron_axe') { drawP(x, -4,-20, 8, 40, '#8d6e63'); drawP(x, 4,-16, 16, 16, key.includes('iron')?'#bdc3c7':'#7f8c8d'); }
+        else if(key === 'pickaxe' || key === 'iron_pickaxe' || key === 'storm_pickaxe') { drawP(x, -4,-20, 8, 40, '#8d6e63'); drawP(x, -16,-20, 32, 12, key==='storm_pickaxe'?'#9b59b6':(key.includes('iron')?'#bdc3c7':'#7f8c8d')); if(key==='storm_pickaxe') drawP(x,-4,-16, 8,4,'#fff','');}
+        else if(key === 'spear' || key === 'harpoon') { drawP(x, -4,-20, 8, 40, '#8d6e63'); drawP(x, -6,-30, 12, 10, '#bdc3c7'); if(key==='harpoon') { drawP(x, -10,-24, 6, 6, '#bdc3c7'); drawP(x, 4,-24, 6, 6, '#bdc3c7'); } }
+        else if(key.includes('sword')) { drawP(x, -4,-10, 8, 30, '#8d6e63'); drawP(x, -12,-10, 24, 6, '#333'); drawP(x, -6,-30, 12, 20, key==='diamond_sword'?'#00ffff':(key==='ice_sword'?'#74b9ff':(key==='iron_sword'?'#ecf0f1':'#bdc3c7'))); }
+        else if(key === 'bow') { drawP(x, -15,-20, 10, 40, '#8d6e63'); drawP(x, -5,-20, 4, 40, '#fff', ''); }
+        else if(key === 'arrow') { drawP(x, -2,-20, 4, 40, '#8d6e63'); drawP(x, -6,-25, 12, 10, '#bdc3c7'); drawP(x, -6, 15, 12, 8, '#fff'); }
+        else if(key === 'fire_staff') { drawP(x, -4,-20, 8, 40, '#5d4037'); drawP(x, -10,-28, 20, 20, '#e74c3c'); drawP(x, -4,-22, 8, 8, '#f1c40f', ''); }
+        else if(key === 'lightning_staff') { drawP(x, -4,-20, 8, 40, '#f1c40f'); drawP(x, -8,-30, 16, 16, '#00ffff'); drawP(x, -2,-26, 4, 4, '#fff', ''); }
+        else if(key === 'grappling_hook') { drawP(x, -2,-20, 4, 40, '#bdc3c7'); drawP(x, -10,-20, 8, 8, '#7f8c8d'); drawP(x, 2,-20, 8, 8, '#7f8c8d'); drawP(x,-4,20, 8,10, '#2ecc71');}
+        else if(key === 'torch') { drawP(x, -4,-10, 8, 30, '#8d6e63'); drawP(x, -8,-20, 16, 10, '#e67e22'); drawP(x, -4,-24, 8, 8, '#f1c40f'); }
+        else if(key === 'headlamp') { drawP(x, -16,-10, 32, 8, '#333'); drawP(x, -8,-14, 16, 16, '#bdc3c7'); drawP(x, -4,-10, 8, 8, '#f1c40f'); }
+        else if(key === 'gas_mask') { drawP(x, -16,-15, 32, 30, '#333'); drawP(x, -10,-5, 8, 8, '#1abc9c'); drawP(x, 2,-5, 8, 8, '#1abc9c'); drawP(x, -8, 8, 16, 8, '#bdc3c7'); }
+        else if(key === 'bandage') { drawP(x, -12,-12, 24, 24, '#ecf0f1'); drawP(x, -4,-8, 8, 16, '#e74c3c', ''); drawP(x, -8,-4, 16, 8, '#e74c3c', ''); }
+        else if(key.includes('armor') || key === 'arctic_coat') { let ac = key==='armor_1'?'#d35400':(key==='armor_2'?'#bdc3c7':(key==='arctic_coat'?'#ecf0f1':'#00ffff')); drawP(x, -16,-10, 32, 20, ac); drawP(x, -10, 10, 20, 10, ac); }
+        else if(key === 'flippers') { drawP(x, -12, -10, 10, 20, '#00cec9'); drawP(x, 2, -10, 10, 20, '#00cec9'); }
+        else if(key === 'workbench') { drawP(x, -20,-10, 40, 10, '#8d6e63'); drawP(x, -16, 0, 8, 16, '#8d6e63'); drawP(x, 8, 0, 8, 16, '#8d6e63'); drawP(x, -10,-14, 10, 8, '#7f8c8d'); }
+        else if(key === 'campfire') { drawP(x, -15, 5, 30, 10, '#7f8c8d'); drawP(x, -10, -5, 20, 15, '#e67e22'); drawP(x, -5, -10, 10, 10, '#f1c40f'); }
+        else if(key === 'raft') { drawP(x, -16,-16, 32, 32, '#d35400'); drawP(x, -16,-8, 32, 4, '#8d6e63', ''); drawP(x, -16, 8, 32, 4, '#8d6e63', ''); }
+        else if(key === 'chest') { drawP(x, -16,-12, 32, 24, '#8d6e63'); drawP(x, -16,-4, 32, 2, '#3e2723', ''); drawP(x, -4,-6, 8, 8, '#f1c40f'); }
+        else if(key === 'wood_support') { drawP(x, -20,-20, 10, 40, '#8d6e63'); drawP(x, 10,-20, 10, 40, '#8d6e63'); drawP(x, -10,-15, 20, 10, '#6d4c41'); }
+        else if(key === 'wood_wall') { drawP(x, -16,-16, 32, 32, '#8d6e63'); drawP(x, -16,-6, 32, 2, '#5d4037',''); drawP(x, -16,6, 32, 2, '#5d4037',''); }
+        else if(key === 'stone_wall') { drawP(x, -16,-16, 32, 32, '#7f8c8d'); drawP(x, -16,-6, 32, 2, '#95a5a6',''); drawP(x, -6,-16, 2, 32, '#95a5a6',''); }
+        else if(key === 'wood_door') { drawP(x, -12,-20, 24, 40, '#8d6e63'); drawP(x, 6, 0, 4, 4, '#f1c40f'); }
+        else if(key === 'planter') { drawP(x, -16,-16, 32, 32, '#5d4037'); drawP(x, -12,-12, 24, 24, '#3e2723'); drawP(x, -4,-8, 8, 16, '#2ecc71',''); }
+        else if(key === 'portal') { drawP(x, -18,-24, 36, 48, '#2c3e50'); drawP(x, -12,-18, 24, 36, '#8e44ad'); drawP(x, -4,-6, 8, 12, '#000'); }
+        else { drawP(x, -10,-10, 20, 20, '#fff'); }
+        
+        iconCache[key] = c.toDataURL(); return iconCache[key];
+    }
+
+    function getAnimalIcon(type) {
+        if(iconCache['anim_'+type]) return iconCache['anim_'+type];
+        const c = document.createElement('canvas'); c.width = 64; c.height = 64; const xCtx = c.getContext('2d');
+        xCtx.imageSmoothingEnabled = false; xCtx.translate(32, 32);
+        let dummy = { type: type, x: 0, y: 0, size: 24, vx: 0, vy: 0, timer: 0, state: 'idle', color: '#e67e22' };
+        let oldTime = time; time = 0; drawAnimal(dummy, xCtx); time = oldTime;
+        iconCache['anim_'+type] = c.toDataURL(); return iconCache['anim_'+type];
+    }
+
+    const itemData = {
+        wood: { name: 'Дерево', cat: 'resources', desc: 'Материал для крафта' },
+        frozen_wood: { name: 'Мерзлое дерево', cat: 'resources', desc: 'Прочное и холодное' },
+        stone: { name: 'Камень', cat: 'resources', desc: 'Твердый материал' },
+        fibers: { name: 'Волокна', cat: 'resources', desc: 'Для веревок' },
+        pelt: { name: 'Шкура', cat: 'resources', desc: 'Для теплой брони' },
+        bone: { name: 'Кость', cat: 'resources', desc: 'Для крепкой брони' },
+        iron: { name: 'Железо', cat: 'resources', desc: 'Прочный металл' },
+        gold: { name: 'Золото', cat: 'resources', desc: 'Редкий металл' },
+        diamond: { name: 'Алмаз', cat: 'resources', desc: 'Сверхпрочный кристалл' },
+        ice_crystal: { name: 'Кристалл льда', cat: 'resources', desc: 'Ледяной самоцвет' },
+        ancient_dust: { name: 'Древняя пыль', cat: 'resources', desc: 'Магическая пыль из глубин' },
+        shark_scale: { name: 'Чешуя акулы', cat: 'resources', desc: 'Плотная чешуя' },
+        blubber: { name: 'Китовый жир', cat: 'resources', desc: 'Отличное топливо' },
+        berries: { name: 'Ягоды', cat: 'food', desc: 'Клик: +15 Еды', action: 'eat' },
+        meat: { name: 'Сырое мясо', cat: 'food', desc: 'Клик: +25 Еды, -10 ХП\nДля приручения волков!', action: 'eat_raw' },
+        cookedMeat: { name: 'Жар. мясо', cat: 'food', desc: 'Клик: +40 Еды, +20 ХП', action: 'eat_cooked' },
+        mushroom: { name: 'Гриб', cat: 'food', desc: 'Клик: +10 Еды, -5 ХП', action: 'eat_shroom' },
+        cookedMushroom: { name: 'Жареный гриб', cat: 'food', desc: 'Клик: +30 Еды, +10 ХП', action: 'eat_cooked_shroom' },
+        empty_bottle: { name: 'Пустая бутылка', cat: 'food', desc: 'Используйте у воды' },
+        water_bottle: { name: 'Бутылка воды', cat: 'food', desc: 'Клик: +40 Жажды', action: 'drink' },
+        ice_drink: { name: 'Ледяной напиток', cat: 'food', desc: 'Охлаждает и спасает в лаве', action: 'drink_ice' },
+        bandage: { name: 'Бинт', cat: 'food', desc: 'Клик: +30 ХП', action: 'heal' },
+        axe: { name: 'Топор', cat: 'gear', desc: 'Рубит дерево' },
+        pickaxe: { name: 'Кирка', cat: 'gear', desc: 'Добывает камень' },
+        iron_pickaxe: { name: 'Жел. Кирка', cat: 'gear', desc: 'Быстрее добывает' },
+        storm_pickaxe: { name: 'Кирка Бури', cat: 'gear', desc: 'Дает шанс двойного дропа руды' },
+        spear: { name: 'Копье', cat: 'gear', desc: 'Дальняя атака' },
+        harpoon: { name: 'Гарпун', cat: 'gear', desc: 'Эффективен в воде' },
+        sword: { name: 'Меч', cat: 'gear', desc: 'Сильный урон' },
+        iron_sword: { name: 'Жел. Меч', cat: 'gear', desc: 'Очень сильный урон' },
+        ice_sword: { name: 'Ледяной меч', cat: 'gear', desc: 'Замораживает врагов' },
+        diamond_sword: { name: 'Алмазный Меч', cat: 'gear', desc: 'Урон по боссу' },
+        bow: { name: 'Лук', cat: 'gear', desc: 'Стреляет стрелами' },
+        arrow: { name: 'Стрела', cat: 'gear', desc: 'Боеприпасы для лука' },
+        fire_staff: { name: 'Посох Огня', cat: 'gear', desc: 'Стреляет огнем (Тратит Пыль)' },
+        lightning_staff: { name: 'Посох Молний', cat: 'gear', desc: 'Цепная молния (Тратит Пыль)' },
+        grappling_hook: { name: 'Крюк-кошка', cat: 'gear', desc: 'Притягивает вас к цели' },
+        torch: { name: 'Факел', cat: 'gear', desc: 'Освещает путь' },
+        headlamp: { name: 'Налобный Фонарь', cat: 'gear', desc: 'Светит всегда (Пассив)' },
+        gas_mask: { name: 'Противогаз', cat: 'gear', desc: 'Защищает от газа (Пассив)' },
+        wood_support: { name: 'Дерев. Опора', cat: 'gear', desc: 'От обвалов', action: 'place_support' },
+        wood_wall: { name: 'Дер. Стена', cat: 'gear', desc: 'Простая защита', action: 'place_wood_wall' },
+        stone_wall: { name: 'Кам. Стена', cat: 'gear', desc: 'Крепкая защита', action: 'place_stone_wall' },
+        wood_door: { name: 'Дер. Дверь', cat: 'gear', desc: 'Открывается на E', action: 'place_door' },
+        planter: { name: 'Грядка', cat: 'gear', desc: 'Выращивает ягоды', action: 'place_planter' },
+        workbench: { name: 'Верстак', cat: 'gear', desc: 'Клик: Разместить', action: 'place_workbench' },
+        campfire: { name: 'Костер', cat: 'gear', desc: 'Клик: Разместить', action: 'place_campfire' },
+        raft: { name: 'Плот', cat: 'gear', desc: 'Клик: Поставить на воду', action: 'place_raft' },
+        chest: { name: 'Сундук', cat: 'gear', desc: 'Клик: Разместить хранилище', action: 'place_chest' },
+        flippers: { name: 'Ласты', cat: 'gear', desc: 'Ускоряют плавание (Пассив)' },
+        portal: { name: 'Врата Пустоты', cat: 'gear', desc: 'Телепорт в Иное Измерение\n(Клик: Разместить)', action: 'place_portal' }
+    };
+
+    const allAnimalsList = ['rabbit', 'wolf', 'boar', 'fox', 'deer', 'scorpion', 'camel', 'vulture', 'sandworm', 'polar_bear', 'snow_leopard', 'penguin', 'ice_shark', 'manta_ray', 'piranha', 'jellyfish', 'dolphin', 'spider', 'crystal_bat', 'stone_mole', 'shadow_flyer', 'mountain_guardian', 'fish', 'crab', 'toxic_toad', 'lava_crab'];
+    const overworldAnimalsList = ['rabbit', 'wolf', 'boar', 'fox', 'deer', 'scorpion', 'camel', 'vulture', 'sandworm', 'polar_bear', 'snow_leopard', 'penguin', 'ice_shark', 'manta_ray', 'jellyfish', 'dolphin'];
+
+    window.onload = () => {
+        ['axe', 'pickaxe', 'spear', 'armor_1', 'armor_2', 'bandage', 'torch', 'campfire', 'workbench', 'sword', 'bow', 'arrow', 'iron_pickaxe', 'iron_sword', 'empty_bottle', 'cookedMeat', 'diamond_sword', 'armor_3', 'arctic_coat', 'flippers', 'harpoon', 'ice_sword', 'raft', 'chest', 'headlamp', 'gas_mask', 'wood_support', 'storm_pickaxe', 'grappling_hook', 'ice_drink', 'fire_staff', 'lightning_staff', 'wood_wall', 'stone_wall', 'wood_door', 'planter', 'portal'].forEach(k => {
+            let el = document.getElementById('icon-craft-' + k); if(el) el.src = getGeneratedIcon(k);
+        });
+    };
+
+    const player = {
+        x: 4500, y: 4500, size: 28, baseSpeed: 1.5, speed: 1.5, health: 100, hunger: 100, thirst: 100, temp: 50,
+        inventory: { empty_bottle: 1, berries: 5, wood: 0, stone: 0, meat: 0, cookedMeat: 0, pelt: 0, fibers: 0, bone: 0, iron: 0, gold: 0, diamond: 0, arrow: 0, bandage: 0, water_bottle: 0, flippers: 0, frozen_wood: 0, ice_crystal: 0, shark_scale: 0, blubber: 0, raft: 0, chest: 0, ancient_dust: 0, mushroom: 0, cookedMushroom: 0, gas_mask: 0, headlamp: 0, portal: 0 },
+        equip: 'hands', armorTier: 0, attackTimer: 0, lookAngle: 0, coolingBuff: 0, skinColor: '#f1c40f', eyeColor: '#2980b9', shirtColor: '#3498db', killCount: {}, onRaft: false,
+        lastHitTarget: null, isCreative: false
+    };
+
+    let isGameOver = false; let inCave = false; let particles = []; let projectiles = []; let floatingTexts = [];
+
+    const worlds = {
+        overworld: { size: 12000, resources: [], animals: [], bots: [], buildables: [], decorations: [], lakes: [], spawnCap: 350, island: {x: 1500, y: 6000, r: 600} },
+        cave: { size: 7500, resources: [], animals: [], buildables: [], decorations: [], spawnCap: 100 },
+        lava_cave: { size: 6000, resources: [], animals: [], buildables: [], decorations: [], spawnCap: 60 },
+        void_realm: { size: 5000, resources: [], animals: [], buildables: [], decorations: [], spawnCap: 120 }
+    };
+    let w = worlds.overworld;
+
+    function getBiome(x, y) {
+        if (w === worlds.void_realm) return 'void_realm';
+        if(inCave) {
+            if (w === worlds.lava_cave) return 'lava_cave';
+            let cNoise = Math.sin(x*0.005) + Math.cos(y*0.005);
+            if (cNoise > 0.6) return 'cave_crystal'; if (cNoise < -0.6) return 'cave_mushroom';
+            let mNoise = Math.sin(x*0.008 + 100) + Math.cos(y*0.008 + 100);
+            if (mNoise > 0.5) return 'cave_mine'; return 'cave_normal';
+        }
+        let s = worlds.overworld.size; let noise = Math.sin(y*0.005)*200 + Math.cos(y*0.011)*100 + Math.sin(x*0.008)*100; let dither = (pseudoRandom(x, y) - 0.5) * 120; let nx = x + noise + dither;
+        if (nx < s * 0.23) { let dx = x - worlds.overworld.island.x, dy = y - worlds.overworld.island.y; let iR = worlds.overworld.island.r + Math.sin(x*0.02)*40 + Math.cos(y*0.02)*40; if (dx*dx + dy*dy < iR*iR) return 'sand_island'; return 'ocean'; }
+        if (nx < s * 0.255) return 'sand'; if (nx < s * 0.55) return 'grass'; if (nx < s * 0.75) return 'desert'; return 'snow';
+    }
+
+    function isLava(x, y) { if (w !== worlds.lava_cave) return false; return (Math.sin(x*0.003) + Math.cos(y*0.003) + Math.sin((x+y)*0.002)) > 0.75; }
+    function isGas(x, y) { if (!inCave || w !== worlds.cave) return false; let cb = getBiome(x, y); if (cb !== 'cave_mushroom' && cb !== 'cave_mine') return false; return (Math.sin(x*0.02)*Math.cos(y*0.02)) > 0.6; }
+    function addShake(amt) { screenShake = Math.min(screenShake + amt, 20); }
+    function spawnParticles(x, y, color, count, speedScale = 1) { for(let i=0; i<count; i++) { particles.push({ x: x, y: y, vx: (Math.random()-0.5)*5*speedScale, vy: (Math.random()-0.5)*5*speedScale, life: 1.0, color: color, size: Math.floor(Math.random()*6+4) }); } }
+    function spawnText(x, y, text, color) { floatingTexts.push({ x:x, y:y, text:text, color:color, life: 1.0, vy: -1 }); }
+    function distSq(x1, y1, x2, y2) { return (x1-x2)**2 + (y1-y2)**2; }
+    function distance(x1, y1, x2, y2) { return Math.sqrt(distSq(x1,y1,x2,y2)); }
+    
+    function isWater(tx, ty) {
+        if(inCave || w === worlds.void_realm) return false;
+        for (let b of w.buildables) { if (b.type === 'raft' && Math.abs(tx - b.x) < 40 && Math.abs(ty - b.y) < 40) return false; }
+        if(getBiome(tx, ty) === 'ocean') return true;
+        for(let l of worlds.overworld.lakes) {
+            if (tx < l.bounds.minX || tx > l.bounds.maxX || ty < l.bounds.minY || ty > l.bounds.maxY) continue;
+            for(let c of l.circles) if(Math.abs(tx - c.x) < c.r && Math.abs(ty - c.y) < c.r) return true;
+        }
+        return false;
+    }
+
+    const fishTypes = [{ c: '#00b894', s: 12, v: 1.0 }, { c: '#3498db', s: 10, v: 1.3 }];
+    function queueRespawn(type, objData, worldObj) { respawnQueue.push({ type: type, objData: objData, world: worldObj, time: time + 600 + Math.random()*600 }); }
+
+    function spawnSpecificAnimal(worldObj, type) {
+        let x, y, b, valid = false;
+        do { 
+            x = Math.random() * worldObj.size; y = Math.random() * worldObj.size; b = getBiome(x, y);
+            if(worldObj === worlds.lava_cave) { if(!isLava(x,y)) valid = true; }
+            else if (worldObj === worlds.void_realm) { valid = true; }
+            else if(worldObj === worlds.cave) {
+                if(['stone_mole', 'crystal_bat', 'shadow_flyer', 'spider'].includes(type)) valid = true;
+                if(type === 'crystal_bat' && b !== 'cave_crystal') valid = false;
+                if(type === 'toxic_toad' && b === 'cave_mushroom') valid = true;
+                if(type === 'stone_mole' && b !== 'cave_mine') valid = false;
+            } else {
+                let wtr = isWater(x, y);
+                if(['ice_shark', 'manta_ray', 'piranha', 'jellyfish', 'dolphin', 'fish'].includes(type)) valid = wtr;
+                else if(type === 'crab') valid = wtr || b === 'sand_island'; else valid = !wtr;
+                if(valid) {
+                    if(['polar_bear', 'snow_leopard', 'penguin'].includes(type) && b !== 'snow') valid = false;
+                    if(['ice_shark', 'manta_ray', 'jellyfish', 'dolphin'].includes(type) && b !== 'ocean') valid = false;
+                    if(['deer', 'rabbit', 'wolf', 'boar', 'fox'].includes(type) && b !== 'grass') valid = false;
+                    if(['scorpion', 'camel', 'vulture', 'sandworm'].includes(type) && b !== 'desert') valid = false;
+                }
+            }
+        } while (!valid);
+
+        let props = { 
+            crystal_bat: {s:20, v:1.8, hp:20}, spider: {s:32, v:1.5, hp:50}, stone_mole: {s:28, v:1.2, hp:60}, toxic_toad: {s:32, v:1.0, hp:80},
+            scorpion: {s:20, v:1.4, hp:25}, camel: {s:45, v:0.8, hp:150}, vulture: {s:30, v:1.5, hp:30}, sandworm: {s:40, v:1.6, hp:100},
+            rabbit: {s:20, v:1.3, hp:15}, wolf: {s:32, v:1.4, hp:50}, boar: {s:36, v:1.2, hp:70}, fox: {s:24, v:1.4, hp:25}, deer: {s:35, v:1.4, hp:40},
+            polar_bear: {s:50, v:1.1, hp:180}, snow_leopard: {s:32, v:1.5, hp:60}, penguin: {s:24, v:1.0, hp:30},
+            ice_shark: {s:64, v:1.5, hp:200}, manta_ray: {s:50, v:1.2, hp:100}, piranha: {s:16, v:1.6, hp:25}, jellyfish: {s:28, v:0.8, hp:40}, dolphin: {s:45, v:1.6, hp:80},
+            lava_crab: {s:32, v:1.2, hp:120}, shadow_flyer: {s:28, v:1.5, hp:45}
+        }[type] || {s:24, v:1.2, hp:30};
+        worldObj.animals.push({type: type, x:x, y:y, size: props.s, baseSpeed: props.v * 0.75, hp: props.hp, maxHp: props.hp, timer:0, state: 'wander', tamed: false});
+    }
+
+    function spawnSpecificResource(worldObj, data) {
+        let x, y, b, valid = false;
+        do { 
+            x = Math.random() * worldObj.size; y = Math.random() * worldObj.size; b = getBiome(x, y);
+            if(worldObj === worlds.lava_cave) { if(!isLava(x,y)) valid = true; }
+            else if(worldObj === worlds.void_realm) { valid = true; }
+            else if(worldObj === worlds.cave) {
+                valid = true;
+                if(data.type === 'minecart' && b !== 'cave_mine') valid = false;
+                if(data.type === 'giant_mushroom' && b !== 'cave_mushroom') valid = false;
+                if(data.type === 'crystal_rock' && b !== 'cave_crystal') valid = false;
+            } else {
+                let wtr = isWater(x,y);
+                if(['seaweed'].includes(data.type)) valid = wtr && b === 'ocean'; else valid = !wtr;
+                if(valid) {
+                    if(['snow_pine', 'ice_rock'].includes(data.type) && b !== 'snow') valid = false;
+                    if(['cactus'].includes(data.type) && b !== 'desert') valid = false;
+                    if(['tree', 'bush'].includes(data.type) && b !== 'grass') valid = false;
+                    if(data.type === 'palm' && b !== 'sand_island') valid = false;
+                    if(data.type === 'rock' && (b === 'snow' || b === 'sand')) valid = false;
+                }
+            }
+        } while (!valid);
+        worldObj.resources.push({type: data.type, x:x, y:y, size: data.size, hp: data.hp, maxHp: data.hp});
+    }
+
+    function generateMapImage() {
+        let s = worlds.overworld.size;
+        let step = 20;
+        
+        for(let x=0; x<s; x+=step) {
+            for(let y=0; y<s; y+=step) {
+                let b = getBiome(x + step/2, y + step/2);
+                if (b === 'ocean') mapCtx.fillStyle = '#0984e3'; 
+                else if (b === 'sand') mapCtx.fillStyle = '#f1c40f'; 
+                else if (b === 'sand_island') mapCtx.fillStyle = '#ffeaa7'; 
+                else if (b === 'grass') mapCtx.fillStyle = '#2ecc71'; 
+                else if (b === 'desert') mapCtx.fillStyle = '#e67e22'; 
+                else mapCtx.fillStyle = '#dfe6e9';
+                mapCtx.fillRect(x/step, y/step, 1, 1);
+            }
+        }
+        
+        mapCtx.fillStyle = '#2980b9';
+        worlds.overworld.lakes.forEach(l => {
+            l.circles.forEach(c => {
+                mapCtx.beginPath();
+                mapCtx.arc(c.x / step, c.y / step, c.r / step, 0, Math.PI*2);
+                mapCtx.fill();
+            });
+        });
+    }
+
+    function spawnWorld() {
+        let s = worlds.overworld.size; let lakeAttempts = 0;
+        while(worlds.overworld.lakes.length < 30 && lakeAttempts < 200) {
+            lakeAttempts++; let lx = s*0.25 + Math.random()*(s*0.5); let ly = Math.random()*s; let overlap = false;
+            for(let ex of worlds.overworld.lakes) { if(distSq(lx, ly, ex.circles[0].x, ex.circles[0].y) < 90000) { overlap = true; break; } }
+            if(overlap) continue;
+            let numCircles = 3 + Math.floor(Math.random()*4); let circles = []; let minX = lx, maxX = lx, minY = ly, maxY = ly;
+            for(let j=0; j<numCircles; j++) { 
+                let cx = lx+(Math.random()-0.5)*120; let cy = ly+(Math.random()-0.5)*120; let cr = 40 + Math.random()*80;
+                circles.push({ x: cx, y: cy, r: cr });
+                minX = Math.min(minX, cx-cr); maxX = Math.max(maxX, cx+cr); minY = Math.min(minY, cy-cr); maxY = Math.max(maxY, cy+cr);
+            }
+            let lake = { circles: circles, lilypads: [], bounds: {minX, maxX, minY, maxY} };
+            for(let j=0; j<5; j++) lake.lilypads.push({ x: circles[0].x+(Math.random()-0.5)*80, y: circles[0].y+(Math.random()-0.5)*80 });
+            worlds.overworld.lakes.push(lake);
+        }
+
+        for(let i=0; i<5000; i++) {
+            let x = Math.random()*s, y = Math.random()*s; let b = getBiome(x, y);
+            if (isWater(x,y)) {
+                if(b === 'ocean') { let r = Math.random(); if(r < 0.05) w.resources.push({type: 'seaweed', x:x, y:y, size: 25, hp: 20, maxHp: 20}); else if(r < 0.08) w.resources.push({type: 'rock', x:x, y:y, size: 35, hp: 80, maxHp: 80}); }
+                continue;
+            }
+            if(b === 'sand_island') {
+                if(Math.random() < 0.1) w.resources.push({type: 'palm', x:x, y:y, size: 40, hp: 40, maxHp: 40});
+                if(Math.random() < 0.05) w.animals.push({type: 'crab', x:x, y:y, size: 16, baseSpeed: 0.6, hp: 20, maxHp: 20, timer: 0, state: 'wander'}); continue;
+            }
+            if (b === 'desert' || b === 'sand') {
+                if(Math.random() < 0.05) w.decorations.push({type: 'tumbleweed', x: x, y: y});
+                if(Math.random() < 0.3 && b !== 'sand') w.resources.push({type: 'cactus', x:x, y:y, size: 30, hp: 30, maxHp: 30});
+                else if(Math.random() < 0.2) w.resources.push({type: 'rock', x:x, y:y, size: 35, hp: 80, maxHp: 80});
+            } else if (b === 'snow') {
+                w.decorations.push({ x: x, y: y, type: 'snow_patch' }); let r = Math.random();
+                if(r < 0.4) w.resources.push({type: 'snow_pine', x:x, y:y, size: 45, hp: 60, maxHp: 60});
+                else if(r < 0.6) w.resources.push({type: 'ice_rock', x:x, y:y, size: 35, hp: 100, maxHp: 100});
+            } else if (b === 'grass') {
+                w.decorations.push({ x: x, y: y, type: Math.random() > 0.8 ? 'flower' : 'grass' }); let r = Math.random();
+                if(r < 0.4) w.resources.push({type: 'tree', x:x, y:y, size: 45, hp: 40, maxHp: 40});
+                else if(r < 0.6) w.resources.push({type: 'bush', x:x, y:y, size: 30, hp: 20, maxHp: 20});
+                else if(r < 0.8) w.resources.push({type: 'rock', x:x, y:y, size: 35, hp: 80, maxHp: 80});
+            }
+        }
+
+        for(let i=0; i<20; i++) { let x = s*0.25 + Math.random()*(s*0.75), y = Math.random()*s; if (!isWater(x,y)) worlds.overworld.resources.push({type: 'cave_entrance', x: x, y: y, size: 60, hp: Infinity}); }
+        
+        for(let i=0; i<worlds.overworld.spawnCap; i++) {
+            let randType = overworldAnimalsList[Math.floor(Math.random() * overworldAnimalsList.length)];
+            spawnSpecificAnimal(worlds.overworld, randType);
+        }
+
+        for(let l of worlds.overworld.lakes) {
+            let mainCircle = l.circles[0]; let numFish = Math.floor(mainCircle.r / 30);
+            for(let i=0; i<numFish; i++) {
+                let ang = Math.random() * Math.PI * 2; let dist = Math.random() * (mainCircle.r * 0.5); let fProfile = fishTypes[Math.floor(Math.random()*fishTypes.length)];
+                worlds.overworld.animals.push({ type: 'fish', x: mainCircle.x + Math.cos(ang)*dist, y: mainCircle.y + Math.sin(ang)*dist, lake: l, size: fProfile.s, baseSpeed: 1.0 * fProfile.v * 0.75, color: fProfile.c, hp: 15, maxHp: 15, timer: 0, state: 'wander' });
+            }
+            for(let i=0; i<2; i++) { let ang = Math.random() * Math.PI * 2; let dist = mainCircle.r + 20 + Math.random()*20; worlds.overworld.animals.push({ type: 'crab', x: mainCircle.x + Math.cos(ang)*dist, y: mainCircle.y + Math.sin(ang)*dist, lake: l, size: 16, baseSpeed: 0.8 * 0.75, hp: 20, maxHp: 20, timer: 0, state: 'wander' }); }
+        }
+
+        let oldW = w; w = worlds.cave; inCave = true;
+        for(let i=0; i<900; i++) worlds.cave.decorations.push({ x: Math.random()*worlds.cave.size, y: Math.random()*worlds.cave.size, type: 'stalactite' });
+        for(let i=0; i<1500; i++) {
+            let x = Math.random() * worlds.cave.size, y = Math.random() * worlds.cave.size; let r = Math.random(); let b = getBiome(x, y);
+            if(b === 'cave_mine') {
+                if(r < 0.1) worlds.cave.resources.push({type: 'minecart', x:x, y:y, size: 40, hp: 50, maxHp: 50});
+                else if(r < 0.5) worlds.cave.resources.push({type: 'iron_rock', x:x, y:y, size: 35, hp: 150, maxHp: 150});
+                else worlds.cave.resources.push({type: 'cave_rock', x:x, y:y, size: 40, hp: 100, maxHp: 100});
+            } else if (b === 'cave_crystal') {
+                if(r < 0.4) worlds.cave.resources.push({type: 'crystal_rock', x:x, y:y, size: 30, hp: 200, maxHp: 200});
+                else worlds.cave.resources.push({type: 'cave_rock', x:x, y:y, size: 40, hp: 100, maxHp: 100});
+            } else if (b === 'cave_mushroom') {
+                if(r < 0.5) worlds.cave.resources.push({type: 'giant_mushroom', x:x, y:y, size: 40, hp: 80, maxHp: 80});
+                else worlds.cave.resources.push({type: 'cave_rock', x:x, y:y, size: 40, hp: 100, maxHp: 100});
+            } else {
+                if(r < 0.6) worlds.cave.resources.push({type: 'cave_rock', x:x, y:y, size: 40, hp: 100, maxHp: 100});
+                else if(r < 0.8) worlds.cave.resources.push({type: 'iron_rock', x:x, y:y, size: 35, hp: 150, maxHp: 150});
+                else if(r < 0.95) worlds.cave.resources.push({type: 'gold_rock', x:x, y:y, size: 30, hp: 200, maxHp: 200});
+                else worlds.cave.resources.push({type: 'diamond_rock', x:x, y:y, size: 25, hp: 300, maxHp: 300});
+            }
+        }
+        worlds.cave.resources.push({type: 'cave_exit', x: 250, y: 250, size: 60, hp: Infinity}); worlds.cave.resources.push({type: 'lava_entrance', x: worlds.cave.size/2, y: worlds.cave.size/2, size: 80, hp: Infinity}); 
+        for(let i=0; i<worlds.cave.spawnCap; i++) {
+            let r = Math.random(); if(r < 0.2) spawnSpecificAnimal(worlds.cave, 'crystal_bat'); else if(r < 0.4) spawnSpecificAnimal(worlds.cave, 'spider'); else if(r < 0.6) spawnSpecificAnimal(worlds.cave, 'stone_mole'); else if(r < 0.8) spawnSpecificAnimal(worlds.cave, 'shadow_flyer'); else spawnSpecificAnimal(worlds.cave, 'toxic_toad');
+        }
+        for(let i=0; i<3; i++) worlds.cave.animals.push({type: 'gnome_trader', x: worlds.cave.size*0.2 + Math.random()*worlds.cave.size*0.6, y: worlds.cave.size*0.2 + Math.random()*worlds.cave.size*0.6, size: 30, baseSpeed: 0, hp: 9999, maxHp: 9999, timer:0, state:'idle'});
+        worlds.cave.animals.push({type: 'mountain_guardian', x: worlds.cave.size - 400, y: worlds.cave.size - 400, size: 140, baseSpeed: 1.5 * 0.75, hp: 4000, maxHp: 4000, timer:0, state:'idle'});
+
+        w = worlds.lava_cave; 
+        for(let i=0; i<1500; i++) {
+            let x = Math.random() * worlds.lava_cave.size, y = Math.random() * worlds.lava_cave.size; if(isLava(x,y)) continue;
+            let r = Math.random(); if(r < 0.4) worlds.lava_cave.resources.push({type: 'cave_rock', x:x, y:y, size: 40, hp: 100, maxHp: 100}); else if(r < 0.7) worlds.lava_cave.resources.push({type: 'gold_rock', x:x, y:y, size: 30, hp: 200, maxHp: 200}); else worlds.lava_cave.resources.push({type: 'diamond_rock', x:x, y:y, size: 25, hp: 300, maxHp: 300});
+        }
+        worlds.lava_cave.resources.push({type: 'lava_exit', x: 250, y: 250, size: 80, hp: Infinity});
+        for(let i=0; i<worlds.lava_cave.spawnCap; i++) spawnSpecificAnimal(worlds.lava_cave, 'lava_crab');
+
+        w = worlds.void_realm;
+        for(let i=0; i<1000; i++) {
+            let x = Math.random() * worlds.void_realm.size, y = Math.random() * worlds.void_realm.size;
+            let r = Math.random();
+            if(r < 0.4) worlds.void_realm.resources.push({type: 'diamond_rock', x:x, y:y, size: 30, hp: 300, maxHp: 300});
+            else if(r < 0.6) worlds.void_realm.resources.push({type: 'gold_rock', x:x, y:y, size: 35, hp: 200, maxHp: 200});
+            else worlds.void_realm.resources.push({type: 'void_rock', x:x, y:y, size: 40, hp: 400, maxHp: 400});
+        }
+        worlds.void_realm.resources.push({type: 'void_exit', x: 250, y: 250, size: 80, hp: Infinity});
+        for(let i=0; i<worlds.void_realm.spawnCap; i++) spawnSpecificAnimal(worlds.void_realm, 'shadow_flyer');
+        for(let i=0; i<8; i++) worlds.void_realm.animals.push({type: 'mountain_guardian', x: Math.random()*worlds.void_realm.size, y: Math.random()*worlds.void_realm.size, size: 140, baseSpeed: 1.5 * 0.75, hp: 4000, maxHp: 4000, timer:0, state:'idle'});
+
+        w = oldW; inCave = false; 
+
+        generateMapImage(); // Рендерим карту мира 
+    }
+
+    function showMsg(msg) { let el = document.getElementById('world-alert'); el.innerText = msg; el.style.opacity = 1; setTimeout(() => el.style.opacity = 0, 3000); }
+
+    function interact() {
+        if(isPaused || showMap) return;
+        let nearChest = w.buildables.find(b => b.type === 'chest' && distSq(player.x, player.y, b.x, b.y) < 10000);
+        if(nearChest) { toggleChest(nearChest); return; }
+
+        let nearPortalObj = w.buildables.find(b => b.type === 'portal' && distSq(player.x, player.y, b.x, b.y) < 10000);
+        if(nearPortalObj) {
+            player.savedOverworldX = player.x; player.savedOverworldY = player.y; w = worlds.void_realm; player.x = 250; player.y = 250; showMsg("ИЗМЕРЕНИЕ ПУСТОТЫ"); inCave = true; updateUI(); return;
+        }
+
+        let nearDoor = w.buildables.find(b => b.type === 'wood_door' && distSq(player.x, player.y, b.x, b.y) < 4000);
+        if(nearDoor) { nearDoor.open = !nearDoor.open; spawnParticles(nearDoor.x, nearDoor.y, '#8d6e63', 5); return; }
+
+        let nearPlanter = w.buildables.find(b => b.type === 'planter' && distSq(player.x, player.y, b.x, b.y) < 4000);
+        if(nearPlanter && nearPlanter.ready) { 
+            player.inventory.berries += Math.floor(Math.random()*3)+2; 
+            nearPlanter.ready = false; nearPlanter.growTimer = 3000; 
+            spawnParticles(nearPlanter.x, nearPlanter.y, '#2ecc71', 10); updateUI(); showMsg("УРОЖАЙ СОБРАН"); return; 
+        }
+
+        let nearWolf = w.animals.find(a => a.type === 'wolf' && !a.tamed && distSq(player.x, player.y, a.x, a.y) < 4000);
+        if(nearWolf && player.inventory.meat > 0) {
+            player.inventory.meat--; nearWolf.tamed = true; nearWolf.state = 'wander'; nearWolf.timer = 0;
+            showMsg("ВОЛК ПРИРУЧЕН!"); spawnParticles(nearWolf.x, nearWolf.y, '#fd79a8', 20); updateUI(); return;
+        }
+
+        let nearGnome = w.animals.find(a => a.type === 'gnome_trader' && distSq(player.x, player.y, a.x, a.y) < 4000);
+        if(nearGnome) {
+            if(player.inventory.cookedMeat >= 5) { player.inventory.cookedMeat -= 5; player.inventory.ancient_dust = (player.inventory.ancient_dust || 0) + 1; showMsg("ГНОМ ДАЛ ВАМ ПЫЛЬ!"); spawnParticles(nearGnome.x, nearGnome.y, '#9b59b6', 15); updateUI(); } 
+            else showMsg("НУЖНО 5 ЖАРЕНОГО МЯСА!"); return;
+        }
+
+        if(!inCave && player.inventory.empty_bottle > 0) {
+            let nearWater = isWater(player.x, player.y) || worlds.overworld.lakes.some(l => l.circles.some(c => distSq(player.x, player.y, c.x, c.y) < (c.r + 40)**2));
+            if(nearWater) { player.inventory.empty_bottle--; player.inventory.water_bottle = (player.inventory.water_bottle||0)+1; showMsg("ВОДА НАБРАНА"); updateUI(); return; }
+        }
+
+        for (let r of w.resources) {
+            if ((r.type === 'cave_entrance' || r.type === 'cave_exit' || r.type === 'lava_entrance' || r.type === 'lava_exit' || r.type === 'void_exit') && distSq(player.x, player.y, r.x, r.y) < 10000) {
+                if(r.type === 'cave_entrance') { player.savedX = player.x; player.savedY = player.y; inCave = true; w = worlds.cave; player.x = 250; player.y = 250; showMsg("ПЕЩЕРА"); } 
+                else if(r.type === 'cave_exit') { inCave = false; w = worlds.overworld; player.x = player.savedX || 4500; player.y = player.savedY || 4500; showMsg("ПОВЕРХНОСТЬ"); }
+                else if(r.type === 'lava_entrance') { player.savedCaveX = player.x; player.savedCaveY = player.y; w = worlds.lava_cave; player.x = 250; player.y = 250; showMsg("ПЫЛАЮЩАЯ ПЕЩЕРА"); }
+                else if(r.type === 'lava_exit') { w = worlds.cave; player.x = player.savedCaveX || 250; player.y = player.savedCaveY || 250; showMsg("ПЕЩЕРА"); }
+                else if(r.type === 'void_exit') { w = worlds.overworld; player.x = player.savedOverworldX || 4500; player.y = player.savedOverworldY || 4500; showMsg("ПОВЕРХНОСТЬ"); inCave = false; }
+                updateUI(); return;
+            }
+        }
+    }
+
+    function toggleChest(chestObj) {
+        let p = document.getElementById('chest-panel'); if (p.style.display === 'block' && currentChest === chestObj) { closeChest(); return; }
+        currentChest = chestObj; p.style.display = 'block'; renderChest();
+    }
+    function closeChest() { document.getElementById('chest-panel').style.display = 'none'; currentChest = null; }
+
+    function renderChest() {
+        if(!currentChest) return; let grid = document.getElementById('chest-grid'); grid.innerHTML = '';
+        Object.keys(currentChest.storage).forEach(key => {
+            if(currentChest.storage[key] > 0) {
+                let slot = document.createElement('div'); slot.className = 'inv-slot';
+                slot.innerHTML = `<img src="${getGeneratedIcon(key)}" class="item-icon"><span class="slot-count">${currentChest.storage[key]}</span>`;
+                slot.onclick = () => { currentChest.storage[key]--; player.inventory[key] = (player.inventory[key]||0) + 1; renderChest(); updateUI(); };
+                slot.onmouseenter = (e) => showTooltip(e, key); slot.onmouseleave = hideTooltip; grid.appendChild(slot);
+            }
+        });
+    }
+
+    function toggleBestiary() {
+        let p = document.getElementById('bestiary-panel'); if (p.style.display === 'block') { p.style.display = 'none'; return; }
+        p.style.display = 'block'; let grid = document.getElementById('bestiary-grid'); grid.innerHTML = '';
+        allAnimalsList.forEach(type => {
+            let count = player.killCount[type] || 0; let icon = getAnimalIcon(type); let div = document.createElement('div'); div.className = 'bestiary-item ' + (count > 0 ? 'unlocked' : '');
+            let nameDict = {rabbit:"Заяц", wolf:"Волк", boar:"Кабан", fox:"Лиса", deer:"Олень", scorpion:"Скорп", camel:"Верблюд", vulture:"Стервят", sandworm:"Червь", polar_bear:"Бел.Медведь", snow_leopard:"Барс", penguin:"Пингвин", ice_shark:"Лед.Акула", manta_ray:"Скат", piranha:"Пиранья", jellyfish:"Медуза", dolphin:"Дельфин", spider:"Паук", crystal_bat:"Мышь", stone_mole:"Крот", shadow_flyer:"Теневик", mountain_guardian:"СТРАЖ", fish:"Рыба", crab:"Краб", toxic_toad:"Жаба", lava_crab:"Лава Краб"};
+            div.innerHTML = `<img src="${icon}"><br><span style="margin:4px 0; color:#ccc;">${count > 0 ? (nameDict[type]||'???') : '???'}</span><span style="color:var(--orange)">Убито: ${count}</span>`; grid.appendChild(div);
+        });
+    }
+
+    function handleAttack() {
+        if (!gameRunning || player.attackTimer > 0 || isPaused || showMap) return;
+        
+        let angle = Math.atan2((mouse.y/ZOOM + camera.y) - player.y, (mouse.x/ZOOM + camera.x) - player.x);
+        
+        if (player.equip === 'grappling_hook' && mouse.clicked) {
+            let nx = player.x + Math.cos(angle)*250; let ny = player.y + Math.sin(angle)*250;
+            if(nx > 0 && nx < w.size && ny > 0 && ny < w.size && !isWater(nx, ny) && !isLava(nx, ny)) { player.x = nx; player.y = ny; spawnParticles(player.x, player.y, '#bdc3c7', 15); addShake(5); player.attackTimer = 40; } 
+            else { showMsg("НЕВОЗМОЖНО ПРИТЯНУТЬСЯ"); player.attackTimer = 15; }
+            mouse.clicked = false; return;
+        }
+
+        if (player.equip === 'fire_staff' && mouse.clicked) {
+            if (player.inventory.ancient_dust > 0) {
+                player.inventory.ancient_dust--; projectiles.push({ x: player.x, y: player.y, vx: Math.cos(angle)*10, vy: Math.sin(angle)*10, life: 50, type: 'fireball' });
+                player.attackTimer = 40; addShake(8); updateUI();
+            } else { showMsg("НЕТ ДРЕВНЕЙ ПЫЛИ (МАНЫ)!"); player.attackTimer = 15; }
+            mouse.clicked = false; return;
+        }
+
+        if (player.equip === 'lightning_staff' && mouse.clicked) {
+            if (player.inventory.ancient_dust > 0) {
+                player.inventory.ancient_dust--; projectiles.push({ x: player.x, y: player.y, vx: Math.cos(angle)*15, vy: Math.sin(angle)*15, life: 40, type: 'lightning' });
+                player.attackTimer = 30; addShake(4); updateUI();
+            } else { showMsg("НЕТ ДРЕВНЕЙ ПЫЛИ (МАНЫ)!"); player.attackTimer = 15; }
+            mouse.clicked = false; return;
+        }
+
+        if (player.equip === 'bow' && mouse.clicked) {
+            if (player.inventory.arrow > 0) { player.inventory.arrow--; projectiles.push({ x: player.x, y: player.y, vx: Math.cos(angle)*8, vy: Math.sin(angle)*8, life: 60, type: 'arrow' }); player.attackTimer = 30; addShake(4); updateUI(); } 
+            else { showMsg("НЕТ СТРЕЛ"); player.attackTimer = 15; }
+            mouse.clicked = false; return;
+        }
+
+        if (!mouse.clicked) return;
+        let targetX = (mouse.x / ZOOM) + camera.x; let targetY = (mouse.y / ZOOM) + camera.y;
+        let reach = (player.equip.includes('spear') || player.equip === 'harpoon') ? 120 : 70; 
+        let dmg = 10, rockDmg = 5, woodDmg = 5;
+        
+        if (player.equip === 'sword') dmg = 35; else if (player.equip === 'iron_sword') dmg = 55; else if (player.equip === 'ice_sword') dmg = 65; else if (player.equip === 'diamond_sword') dmg = 95; else if (player.equip === 'spear') dmg = 25; else if (player.equip === 'harpoon') dmg = 45;
+        if (player.equip === 'pickaxe') rockDmg = 40; else if (player.equip === 'iron_pickaxe') rockDmg = 75; else if (player.equip === 'storm_pickaxe') rockDmg = 120;
+        if (player.equip === 'axe') woodDmg = 40; else if (player.equip === 'iron_axe') woodDmg = 75;
+
+        let hitSomething = false;
+
+        for(let i = w.buildables.length - 1; i >= 0; i--) {
+            let b = w.buildables[i];
+            if (['raft', 'chest', 'workbench', 'campfire', 'wood_support', 'wood_wall', 'stone_wall', 'wood_door', 'planter', 'portal'].includes(b.type)) {
+                if (distance(player.x, player.y, b.x, b.y) < reach && distance(targetX, targetY, b.x, b.y) < 50) {
+                    let bDmg = (b.type === 'stone_wall' || b.type === 'portal') ? rockDmg : woodDmg;
+                    b.hp = (b.hp||50) - bDmg;
+                    spawnParticles(b.x, b.y, b.type==='stone_wall'?'#95a5a6':(b.type==='portal'?'#8e44ad':'#8d6e63'), 5); addShake(4); hitSomething = true;
+                    if(b.hp <= 0) {
+                        if(b.type === 'chest') { player.inventory.chest = (player.inventory.chest||0) + 1; for(let k in b.storage) if(b.storage[k] > 0) player.inventory[k] = (player.inventory[k]||0) + b.storage[k]; if(currentChest === b) closeChest(); }
+                        else if(['wood_wall', 'stone_wall', 'wood_door', 'planter', 'portal'].includes(b.type)) { player.inventory[b.type] = (player.inventory[b.type]||0) + 1; }
+                        else player.inventory[b.type] = (player.inventory[b.type]||0) + 1;
+                        w.buildables.splice(i, 1);
+                    }
+                    break;
+                }
+            }
+        }
+
+        if(!hitSomething) {
+            for (let i = w.animals.length - 1; i >= 0; i--) {
+                let a = w.animals[i];
+                if (distance(player.x, player.y, a.x, a.y) < reach && distance(targetX, targetY, a.x, a.y) < a.size + 20) {
+                    if (a.tamed) continue;
+                    if (a.type === 'mountain_guardian' && player.equip !== 'diamond_sword' && player.equip !== 'harpoon') { showMsg("НУЖНО ЛУЧШЕЕ ОРУЖИЕ!"); hitSomething = true; break; }
+                    let aDmg = dmg; if(player.equip === 'harpoon' && isWater(a.x, a.y)) aDmg *= 1.5; 
+                    a.hp -= aDmg; spawnText(a.x, a.y - 20, `-${Math.floor(aDmg)}`, '#ff4757'); spawnParticles(a.x, a.y, '#e74c3c', 10); addShake(5);
+                    player.lastHitTarget = a; 
+                    if(player.equip === 'ice_sword') a.frozen = 60; 
+                    if(!['mountain_guardian','fish','crab','jellyfish'].includes(a.type)) { a.x += (a.x - player.x) * 0.1; a.y += (a.y - player.y) * 0.1; }
+                    if(a.type !== 'gnome_trader') { a.state = 'chase'; a.timer = 0; hitSomething = true; }
+                    if (a.hp <= 0) {
+                        if(a.type !== 'gnome_trader') player.killCount[a.type] = (player.killCount[a.type] || 0) + 1;
+                        if(player.lastHitTarget === a) player.lastHitTarget = null;
+                        if (a.type === 'fish' || a.type === 'crab' || a.type === 'piranha') { player.inventory.meat += 1; if(a.type==='piranha') player.inventory.bone+=1; queueRespawn('animal', { type: a.type, lake: a.lake }, w); } 
+                        else {
+                            if(!['toxic_toad', 'lava_crab', 'mountain_guardian', 'gnome_trader', 'stone_mole', 'crystal_bat'].includes(a.type)) player.inventory.meat += (a.size > 25 ? 2 : 1);
+                            if (['polar_bear', 'snow_leopard', 'wolf', 'rabbit', 'fox', 'camel', 'deer', 'boar'].includes(a.type)) { player.inventory.pelt += (a.type==='polar_bear'?3:1); if(Math.random()<0.5) player.inventory.bone += 1; }
+                            if (a.type === 'spider') player.inventory.fibers += 2; if (a.type === 'ice_shark') { player.inventory.shark_scale += 2; player.inventory.ice_crystal += 1; }
+                            if (a.type === 'manta_ray') player.inventory.blubber += 2; if (a.type === 'jellyfish') player.inventory.fibers += 1; 
+                            if (a.type === 'lava_crab') { player.inventory.diamond += 1; player.inventory.stone += 2; }
+                            if (a.type === 'stone_mole') { player.inventory.stone += 3; player.inventory.iron += 1; }
+                            if (a.type === 'toxic_toad') { player.inventory.mushroom += 2; player.inventory.ancient_dust += 1; }
+                            if (a.type === 'crystal_bat') { player.inventory.ice_crystal += 1; }
+                            if (a.type === 'mountain_guardian') { showMsg("СТРАЖ ГОР ПОВЕРЖЕН!"); player.inventory.ancient_dust += 5; player.inventory.diamond += 3; }
+                            if (a.type !== 'mountain_guardian' && a.type !== 'gnome_trader') queueRespawn('animal', { type: a.type }, w);
+                        }
+                        w.animals.splice(i, 1);
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (!hitSomething) {
+            for (let i = w.resources.length - 1; i >= 0; i--) {
+                let r = w.resources[i]; if (r.hp === Infinity) continue;
+                if (distance(player.x, player.y, r.x, r.y) < reach && distance(targetX, targetY, r.x, r.y) < r.size + 15) {
+                    if(r.type === 'cactus') { player.health -= 5; addShake(4); }
+                    let d = (r.type.includes('rock') ? rockDmg : woodDmg); r.hp -= d; hitSomething = true;
+                    let pColor = r.type.includes('rock') ? '#95a5a6' : (['bush','seaweed'].includes(r.type) ? '#2ecc71' : (r.type==='coral'?'#fd79a8':'#8d6e63'));
+                    if(r.type === 'giant_mushroom') pColor = '#e74c3c';
+                    if(r.type === 'void_rock') pColor = '#8e44ad';
+                    spawnParticles(r.x, r.y, pColor, 8); addShake(r.type.includes('rock') ? 6 : 4); spawnText(r.x, r.y - 20, `-${d}`, '#fff');
+
+                    if (r.hp <= 0) {
+                        let mult = (player.equip === 'storm_pickaxe' && Math.random() < 0.2) ? 2 : 1;
+                        if (r.type === 'tree' || r.type === 'shipwreck' || r.type === 'palm') player.inventory.wood += (Math.floor(Math.random()*4)+2) * mult;
+                        if (r.type === 'snow_pine') { player.inventory.frozen_wood += (Math.floor(Math.random()*3)+1)*mult; player.inventory.wood += 1; }
+                        if (r.type === 'cactus') { player.inventory.wood += 1; player.inventory.water_bottle++; }
+                        if (r.type === 'bush' || r.type === 'seaweed') { player.inventory.berries += 1*mult; player.inventory.fibers += 2*mult; }
+                        if (r.type === 'coral') { player.inventory.stone += 2*mult; } if (r.type === 'giant_mushroom') { player.inventory.mushroom += 2*mult; }
+                        if (r.type === 'rock' || r.type === 'cave_rock') { player.inventory.stone += (Math.floor(Math.random()*3)+1)*mult; }
+                        if (r.type === 'ice_rock') { player.inventory.stone += 1*mult; player.inventory.ice_crystal += (Math.floor(Math.random()*2)+1)*mult; }
+                        if (r.type === 'iron_rock') { player.inventory.stone += 2*mult; player.inventory.iron += (Math.floor(Math.random()*2)+1)*mult; }
+                        if (r.type === 'gold_rock') { player.inventory.stone += 2*mult; player.inventory.gold += (Math.floor(Math.random()*2)+1)*mult; checkCaveIn(r); }
+                        if (r.type === 'diamond_rock') { player.inventory.stone += 2*mult; player.inventory.diamond += (Math.floor(Math.random()*2)+1)*mult; checkCaveIn(r); }
+                        if (r.type === 'void_rock') { player.inventory.stone += 2*mult; player.inventory.ancient_dust += (Math.floor(Math.random()*3)+1)*mult; }
+                        if (r.type === 'crystal_rock') { player.inventory.stone += 1*mult; player.inventory.ice_crystal += 2*mult; }
+                        if (r.type === 'minecart') { player.inventory.iron += 2*mult; player.inventory.wood += 1*mult; if(Math.random()<0.3) player.inventory.ancient_dust+=1; }
+                        queueRespawn('resource', { type: r.type, size: r.size, hp: r.maxHp }, w); w.resources.splice(i, 1);
+                    }
+                    break;
+                }
+            }
+        }
+        player.attackTimer = hitSomething ? 25 : 10; if(hitSomething) updateUI(); mouse.clicked = false;
+    }
+
+    function checkCaveIn(res) {
+        if (!inCave) return; let hasSupport = w.buildables.some(b => b.type === 'wood_support' && distSq(player.x, player.y, b.x, b.y) < 22500);
+        if (!hasSupport && Math.random() < 0.4) { player.health -= 25; addShake(15); showMsg("ОБВАЛ!"); spawnParticles(player.x, player.y - 50, '#7f8c8d', 30, 2); }
+    }
+
+    function isCollidingWithBuilding(nx, ny, entityType) {
+        for(let b of w.buildables) {
+            if (['chest', 'workbench', 'wood_wall', 'stone_wall', 'portal'].includes(b.type) || (b.type === 'wood_door' && !b.open)) { 
+                if(Math.abs(nx - b.x) < 30 && Math.abs(ny - b.y) < 30) return true;
+            }
+        }
+        return false;
+    }
+
+    function updateAnimals() {
+        w.animals.forEach(a => {
+            if (!a || a.type === 'gnome_trader') return;
+            a.timer--; let distToPlayer = distance(player.x, player.y, a.x, a.y); let vx = 0, vy = 0; let moveAng = Math.atan2(player.y - a.y, player.x - a.x);
+            let spdMult = (a.frozen > 0) ? 0.3 : 1.0; if(a.frozen > 0) a.frozen--;
+
+            if (a.tamed) {
+                let target = player.lastHitTarget;
+                if(target && target.hp > 0 && w.animals.includes(target)) {
+                    let tDist = distance(a.x, a.y, target.x, target.y);
+                    if (tDist > a.size + target.size + 10) {
+                        let tAng = Math.atan2(target.y - a.y, target.x - a.x);
+                        vx = Math.cos(tAng) * a.baseSpeed * 2 * spdMult; vy = Math.sin(tAng) * a.baseSpeed * 2 * spdMult;
+                    } else {
+                        if(time % 30 === 0) { target.hp -= 15; spawnParticles(target.x, target.y, '#ff4757', 5); if(target.hp <= 0) player.lastHitTarget = null; }
+                    }
+                } else {
+                    if (distToPlayer > 100) { vx = Math.cos(moveAng) * a.baseSpeed * 1.5 * spdMult; vy = Math.sin(moveAng) * a.baseSpeed * 1.5 * spdMult; }
+                }
+            } else if (a.type === 'mountain_guardian') {
+                if(distToPlayer < 500) {
+                    if(a.state === 'idle' && a.timer <= 0) { a.state = Math.random() > 0.5 ? 'dash' : 'wave'; a.timer = 80; }
+                    if(a.state === 'dash') { vx = Math.cos(moveAng)*a.baseSpeed*2.5*spdMult; vy = Math.sin(moveAng)*a.baseSpeed*2.5*spdMult; if(distToPlayer < a.size && time%10===0) { if(player.armorTier < 3) player.health -= 50; else { player.health -= 25; addShake(20); } } } 
+                    else if (a.state === 'wave') { if(a.timer === 40) { addShake(15); for(let i=0; i<16; i++) projectiles.push({x:a.x, y:a.y, vx:Math.cos(i*(Math.PI/8))*5, vy:Math.sin(i*(Math.PI/8))*5, type:'boss_magic', life:150}); } }
+                    if(a.timer <= 0) { a.state = 'idle'; a.timer = 100; }
+                }
+            } else if (a.type === 'shadow_flyer') {
+                let playerHasLight = player.equip === 'torch' || player.inventory.headlamp > 0;
+                if(distToPlayer < 250) { if(playerHasLight) { vx = -Math.cos(moveAng)*a.baseSpeed*spdMult; vy = -Math.sin(moveAng)*a.baseSpeed*spdMult; } else { vx = Math.cos(moveAng)*a.baseSpeed*spdMult; vy = Math.sin(moveAng)*a.baseSpeed*spdMult; if(distToPlayer < a.size/2 + player.size/2 && time%20===0) { player.health -= 10; addShake(5); } } } 
+                else { if(a.timer <= 0) { a.ang = Math.random()*Math.PI*2; a.timer = 60; } vx = Math.cos(a.ang)*a.baseSpeed*0.5*spdMult; vy = Math.sin(a.ang)*a.baseSpeed*0.5*spdMult; }
+            } else if (a.type === 'stone_mole') {
+                if(distToPlayer < 100 && a.state !== 'chase') { a.state = 'chase'; a.timer = 30; }
+                if(a.state === 'chase') { vx = Math.cos(moveAng)*a.baseSpeed*spdMult; vy = Math.sin(moveAng)*a.baseSpeed*spdMult; if(distToPlayer < a.size && time%20===0) { player.health -= 8; addShake(5); } if(distToPlayer > 300) a.state = 'idle'; }
+            } else if (a.type === 'fish' || a.type === 'crab' || a.type === 'jellyfish' || a.type === 'dolphin') {
+                if(a.timer <= 0) { a.timer = 50 + Math.random()*100; a.ang = Math.random() * Math.PI * 2; }
+                if(a.type === 'jellyfish' && distToPlayer < 30 && time%20===0) { player.health -= 5; addShake(5); spawnParticles(player.x, player.y, '#00ffff', 5); }
+                vx = Math.cos(a.ang)*a.baseSpeed*spdMult; vy = Math.sin(a.ang)*a.baseSpeed*spdMult; let nextX = a.x + vx*10, nextY = a.y + vy*10;
+                if(a.type === 'fish' && a.lake && !a.lake.circles.some(c => Math.abs(nextX-c.x)<c.r && Math.abs(nextY-c.y)<c.r)) { a.ang += Math.PI; vx = -vx; vy = -vy; }
+            } else if(a.type === 'fox' || a.type === 'scorpion') {
+                if(distToPlayer < 150) { if(a.type==='fox') { let runAng = moveAng + Math.PI; vx = Math.cos(runAng)*a.baseSpeed*spdMult; vy = Math.sin(runAng)*a.baseSpeed*spdMult; } else { vx = Math.cos(moveAng)*a.baseSpeed*spdMult; vy = Math.sin(moveAng)*a.baseSpeed*spdMult; if(distToPlayer < 35 && a.timer<=0) { player.health -= 5; player.temp += 5; addShake(5); a.timer=40; } } } 
+                else { if(a.timer <= 0) { a.ang = Math.random()*Math.PI*2; a.timer = 60; } vx = Math.cos(a.ang)*a.baseSpeed*0.4*spdMult; vy = Math.sin(a.ang)*a.baseSpeed*0.4*spdMult; }
+            } else if(a.type === 'camel' || a.type === 'penguin') { if(a.timer <= 0) { a.ang = Math.random()*Math.PI*2; a.timer = 200; } vx = Math.cos(a.ang)*a.baseSpeed*spdMult; vy = Math.sin(a.ang)*a.baseSpeed*spdMult; }
+            else if(a.type === 'vulture') {
+                if(player.health < 40 && distToPlayer < 400) { a.ang = (time*0.02) % (Math.PI*2); let tx = player.x + Math.cos(a.ang)*100; let ty = player.y + Math.sin(a.ang)*100; vx = (tx-a.x)*0.05*spdMult; vy = (ty-a.y)*0.05*spdMult; }
+                else { if(a.timer <= 0) { a.ang = Math.random()*Math.PI*2; a.timer = 100; } vx = Math.cos(a.ang)*a.baseSpeed*spdMult; vy = Math.sin(a.ang)*a.baseSpeed*spdMult; }
+            } else if(a.type === 'rabbit' || a.type === 'deer') {
+                if(distToPlayer < 200) { a.state = 'flee'; a.timer = 20; }
+                if(a.state === 'flee') { if(a.timer > 10) { let ang = Math.atan2(a.y - player.y, a.x - player.x); vx = Math.cos(ang)*a.baseSpeed*spdMult; vy = Math.sin(ang)*a.baseSpeed*spdMult; } } 
+                else if(a.timer <= 0) { if(Math.random() < 0.5) { a.state = 'wander'; a.ang = Math.random()*Math.PI*2; a.timer = 30; } else { a.state = 'idle'; a.timer = 60; } }
+                if(a.state === 'wander' && a.timer > 15) { vx = Math.cos(a.ang)*a.baseSpeed*0.5*spdMult; vy = Math.sin(a.ang)*a.baseSpeed*0.5*spdMult; }
+            } else if(a.type === 'sandworm') {
+                if(distToPlayer < 250) {
+                    if(a.state !== 'chase') { a.state = 'chase'; a.timer = 60; }
+                    if(a.timer > 0) { vx = 0; vy = 0; } else { vx = Math.cos(moveAng)*a.baseSpeed*spdMult; vy = Math.sin(moveAng)*a.baseSpeed*spdMult; if(distToPlayer < a.size) { player.health -= 15; addShake(8); a.timer = 80; } }
+                } else { a.state = 'idle'; a.timer = 60; vx = 0; vy = 0; }
+            } else if(['wolf', 'polar_bear', 'boar', 'spider', 'snow_leopard', 'ice_shark', 'manta_ray', 'piranha', 'lava_crab', 'toxic_toad'].includes(a.type)) {
+                let aggrDist = (a.type === 'ice_shark' || a.type === 'polar_bear' || a.type === 'lava_crab') ? 300 : 200;
+                let dmgAmt = {wolf:6, polar_bear:10, boar:5, spider:8, snow_leopard:8, ice_shark:12, manta_ray:6, piranha:4, lava_crab:12, toxic_toad:8}[a.type];
+                
+                if(distToPlayer < aggrDist && a.state !== 'chase') { a.state = 'pause'; a.timer = a.type.includes('spider')?0:30; }
+                if(a.state === 'pause' && a.timer <= 0) a.state = 'chase';
+                if(a.state === 'chase') { 
+                    if(a.type.includes('spider') && a.timer<=0) { a.timer=40; a.ang = moveAng + (Math.random()-0.5); }
+                    if(a.type === 'snow_leopard' && a.timer<=0) { a.timer=50; a.ang = moveAng; vx = Math.cos(a.ang)*a.baseSpeed*3*spdMult; vy = Math.sin(a.ang)*a.baseSpeed*3*spdMult; } 
+                    else if(!a.type.includes('spider') || a.timer>20) { vx = Math.cos(a.type.includes('spider')?a.ang:moveAng)*a.baseSpeed*spdMult; vy = Math.sin(a.type.includes('spider')?a.ang:moveAng)*a.baseSpeed*spdMult; }
+                    
+                    if(distToPlayer < a.size/2 + player.size/2 && (!a.type.includes('spider')||a.timer>20)) { 
+                        player.health -= dmgAmt * (1 - player.armorTier*0.2); addShake(dmgAmt); 
+                        if(a.type === 'lava_crab') { player.temp += 10; spawnParticles(player.x, player.y, '#ff4d00', 5); }
+                        if(a.type === 'toxic_toad') { spawnParticles(player.x, player.y, '#9b59b6', 5); }
+                        if(a.type.includes('spider')) a.timer=0; 
+                    }
+                    if(distToPlayer > aggrDist*1.5) a.state = 'wander';
+                }
+                if(a.state === 'wander') { if(a.timer <= 0) { a.ang = Math.random()*Math.PI*2; a.timer = 150; } vx = Math.cos(a.ang)*a.baseSpeed*0.4*spdMult; vy = Math.sin(a.ang)*a.baseSpeed*0.4*spdMult; }
+            } else if(a.type === 'crystal_bat') {
+                if(a.timer <= 0) { a.timer = 20; a.ang = distToPlayer < 300 ? Math.atan2(player.y - a.y, player.x - a.x) + (Math.random()-0.5)*2 : Math.random()*Math.PI*2; }
+                vx = Math.cos(a.ang)*a.baseSpeed*spdMult; vy = Math.sin(a.ang)*a.baseSpeed*spdMult; if(distToPlayer < a.size/2 + player.size/2) { player.health -= 2; addShake(2); }
+            }
+
+            let nx = a.x + vx; let ny = a.y + vy; let isMarine = ['ice_shark', 'manta_ray', 'piranha', 'jellyfish', 'dolphin', 'fish'].includes(a.type); let inW = isWater(nx, ny);
+            if (isMarine) { if (!inW) { vx = -vx * 0.5; vy = -vy * 0.5; if(time % 10 === 0) a.hp -= 2; } } 
+            else if (!['crystal_bat','vulture','toxic_toad','lava_crab', 'shadow_flyer'].includes(a.type)) { if (getBiome(nx, ny) === 'ocean' && !inCave && w !== worlds.void_realm) { vx = -vx; vy = -vy; } }
+
+            if(!['fish','crab','crystal_bat','vulture','ice_shark','manta_ray','piranha','jellyfish','dolphin','toxic_toad','lava_crab', 'shadow_flyer'].includes(a.type)) {
+                if(isCollidingWithBuilding(a.x + vx, a.y, 'animal')) vx = 0; if(isCollidingWithBuilding(a.x, a.y + vy, 'animal')) vy = 0;
+            }
+
+            a.vx = vx; a.vy = vy; a.x += vx; a.y += vy;
+            if(a.x < 0) a.x = 0; if(a.x > w.size) a.x = w.size; if(a.y < 0) a.y = 0; if(a.y > w.size) a.y = w.size;
+        });
+    }
+
+    function updateFullscreenMap() {
+        if (!showMap) return;
+        const fsMap = document.getElementById('fullscreen-map');
+        const fsCtx = fsMap.getContext('2d');
+        fsCtx.imageSmoothingEnabled = false;
+        
+        fsCtx.clearRect(0,0,600,600);
+        fsCtx.drawImage(mapCanvas, 0, 0);
+        
+        let px = (player.x / worlds.overworld.size) * 600;
+        let py = (player.y / worlds.overworld.size) * 600;
+        
+        fsCtx.fillStyle = '#ff4757';
+        fsCtx.beginPath(); fsCtx.arc(px, py, 4, 0, Math.PI*2); fsCtx.fill();
+        fsCtx.strokeStyle = '#fff'; fsCtx.lineWidth = 2; fsCtx.stroke();
+
+        markers.forEach((m) => {
+            let mx = (m.x / worlds.overworld.size) * 600;
+            let my = (m.y / worlds.overworld.size) * 600;
+            fsCtx.fillStyle = '#f1c40f';
+            fsCtx.beginPath(); fsCtx.arc(mx, my, 5, 0, Math.PI*2); fsCtx.fill();
+            fsCtx.stroke();
+            fsCtx.font = '12px "Press Start 2P", monospace'; 
+            fsCtx.fillStyle = '#fff';
+            fsCtx.fillText("М", mx - 5, my - 8);
+        });
+    }
+
+    function update() {
+        if (!gameRunning || isGameOver || isPaused || showMap) return;
+        screenShake = Math.max(0, screenShake * 0.9); time++;
+
+        if(player.coolingBuff > 0) player.coolingBuff--;
+
+        w.buildables.forEach(b => {
+            if(b.type === 'planter' && !b.ready) {
+                b.growTimer = (b.growTimer || 3000) - 1;
+                if(b.growTimer <= 0) b.ready = true;
+            }
+        });
+
+        for (let i = respawnQueue.length - 1; i >= 0; i--) {
+            let rq = respawnQueue[i];
+            if (time >= rq.time) {
+                if (rq.type === 'animal') {
+                    if (rq.objData.type === 'fish' || rq.objData.type === 'crab' || rq.objData.type === 'piranha') {
+                        let lake = rq.objData.lake;
+                        if(lake && lake.circles && lake.circles.length > 0) {
+                             let mainCircle = lake.circles[0]; let ang = Math.random() * Math.PI * 2; 
+                             if (rq.objData.type === 'fish' || rq.objData.type === 'piranha') {
+                                 let dist = Math.random() * (mainCircle.r * 0.5); let fProfile = fishTypes[Math.floor(Math.random()*fishTypes.length)];
+                                 rq.world.animals.push({ type: rq.objData.type, x: mainCircle.x + Math.cos(ang)*dist, y: mainCircle.y + Math.sin(ang)*dist, lake: lake, size: rq.objData.type==='piranha'?16:fProfile.s, baseSpeed: 1.0 * (rq.objData.type==='piranha'?3.0:fProfile.v) * 0.75, color: fProfile.c, hp: rq.objData.type==='piranha'?25:15, maxHp: rq.objData.type==='piranha'?25:15, timer: 0, state: 'wander' });
+                             } else { let dist = mainCircle.r + 10 + Math.random()*20; rq.world.animals.push({ type: 'crab', x: mainCircle.x + Math.cos(ang)*dist, y: mainCircle.y + Math.sin(ang)*dist, lake: lake, size: 16, baseSpeed: 0.8 * 0.75, hp: 20, maxHp: 20, timer: 0, state: 'wander' }); }
+                        }
+                    } else spawnSpecificAnimal(rq.world, rq.objData.type);
+                } else if (rq.type === 'resource') spawnSpecificResource(rq.world, rq.objData);
+                respawnQueue.splice(i, 1);
+            }
+        }
+
+        player.onRaft = w.buildables.some(b => b.type === 'raft' && Math.abs(player.x - b.x) < 30 && Math.abs(player.y - b.y) < 30);
+        if (isWater(player.x, player.y) && !player.onRaft) { let speedMult = player.armorTier === 5 ? 1.2 : (player.inventory.flippers > 0 ? 0.9 : 0.5); player.speed = player.baseSpeed * speedMult; } 
+        else { player.speed = player.armorTier === 3 ? player.baseSpeed * 1.2 : player.baseSpeed; if (player.onRaft) player.speed = Math.max(player.speed, player.baseSpeed * 1.2); }
+
+        let nx = player.x, ny = player.y;
+        if (keys.w && player.y > player.size/2) ny -= player.speed;
+        if (keys.s && player.y < w.size - player.size/2) ny += player.speed;
+        if (keys.a && player.x > player.size/2) nx -= player.speed;
+        if (keys.d && player.x < w.size - player.size/2) nx += player.speed;
+
+        if(!isCollidingWithBuilding(nx, player.y, 'player')) player.x = nx;
+        if(!isCollidingWithBuilding(player.x, ny, 'player')) player.y = ny;
+        player.lookAngle = Math.atan2((mouse.y/ZOOM + camera.y) - player.y, (mouse.x/ZOOM + camera.x) - player.x);
+
+        let shakeX = (Math.random()-0.5)*screenShake; let shakeY = (Math.random()-0.5)*screenShake;
+        camera.x = player.x - (canvas.width / 2) / ZOOM + shakeX; camera.y = player.y - (canvas.height / 2) / ZOOM + shakeY;
+
+        for(let i=particles.length-1; i>=0; i--) { let p = particles[i]; p.x += p.vx; p.y += p.vy; p.life -= 0.05; if(p.life <= 0) particles.splice(i, 1); }
+        for(let i=floatingTexts.length-1; i>=0; i--) { let t = floatingTexts[i]; t.y += t.vy; t.life -= 0.03; if(t.life <= 0) floatingTexts.splice(i, 1); }
+        
+        let cBiome = getBiome(player.x, player.y);
+        if(!inCave && w !== worlds.void_realm && (cBiome === 'desert' || cBiome === 'sand') && Math.random() < 0.15) spawnParticles(camera.x + Math.random()*canvas.width/ZOOM, camera.y - 50, '#e67e22', 1, 3);
+        if(!inCave && w !== worlds.void_realm && cBiome === 'snow' && Math.random() < 0.3) spawnParticles(camera.x + Math.random()*canvas.width/ZOOM, camera.y - 50, '#ecf0f1', 1, 2);
+
+        for(let i=projectiles.length-1; i>=0; i--) {
+            let p = projectiles[i]; p.x += p.vx; p.y += p.vy; p.life--; let hit = false;
+            if (p.type === 'fireball') {
+                spawnParticles(p.x, p.y, '#e74c3c', 2); spawnParticles(p.x, p.y, '#f1c40f', 1);
+                for(let a of w.animals) { 
+                    if(!a.tamed && distSq(p.x, p.y, a.x, a.y) < a.size**2 + 400) { 
+                        a.hp -= 40; spawnParticles(a.x, a.y, '#e74c3c', 30, 2); spawnParticles(a.x, a.y, '#f1c40f', 20, 3); addShake(10); hit = true; 
+                    } 
+                }
+            } else if (p.type === 'lightning') {
+                spawnParticles(p.x, p.y, '#00ffff', 4);
+                for(let a of w.animals) { 
+                    if(!a.tamed && distSq(p.x, p.y, a.x, a.y) < a.size**2 + 300) { 
+                        a.hp -= 35; spawnParticles(a.x, a.y, '#00ffff', 15); addShake(8); hit = true; 
+                    } 
+                }
+            } else if (p.type === 'boss_magic' || p.type === 'water_blast') { 
+                if(distSq(p.x, p.y, player.x, player.y) < 400) { player.health -= (p.type === 'water_blast' ? 25 : 20); addShake(10); hit = true; } 
+            } else { 
+                for(let a of w.animals) { if(!a.tamed && distSq(p.x, p.y, a.x, a.y) < a.size**2) { a.hp -= 20; spawnParticles(a.x, a.y, '#e74c3c', 15); addShake(4); hit = true; break; } } 
+            }
+            if(hit || p.life <= 0) projectiles.splice(i, 1);
+        }
+
+        w.decorations.forEach(d => { if(d.type === 'tumbleweed') { d.x += 1; d.y += Math.sin(time*0.05)*2; if(d.x > w.size*0.75) d.x = w.size*0.55; } });
+
+        if (w === worlds.lava_cave && isLava(player.x, player.y)) { if(player.coolingBuff <= 0 && player.armorTier !== 4) { player.health -= 0.5; player.temp += 1; if (time % 10 === 0) spawnParticles(player.x, player.y, '#ff4d00', 3); } }
+        if (isGas(player.x, player.y)) { if(player.inventory.gas_mask <= 0) { player.health -= 0.2; if (time % 20 === 0) spawnParticles(player.x, player.y, '#1abc9c', 2); } }
+
+        player.hunger -= 0.002; player.thirst -= 0.003; let cycleTime = time % 900000; let isNight = cycleTime > 600000 && cycleTime < 840000;
+        let targetTemp = 50;
+        if (w === worlds.lava_cave) targetTemp = 90; else if (w === worlds.void_realm) targetTemp = 20; else if (inCave) targetTemp = 30; else if (cBiome === 'snow') targetTemp = isNight ? -20 : 10; else if (cBiome === 'desert' || cBiome === 'sand') targetTemp = isNight ? 30 : 90; else if (cBiome === 'ocean') targetTemp = isNight ? 20 : 40; else targetTemp = isNight ? 15 : 50;
+
+        let nearFire = w.buildables.some(b => b.type === 'campfire' && distSq(player.x, player.y, b.x, b.y) < 40000);
+        if (nearFire) targetTemp = Math.max(targetTemp, 70); if (player.equip === 'torch') targetTemp += 15; if (player.coolingBuff > 0) targetTemp -= 30;
+        if (player.armorTier === 4) { if (targetTemp < 50) targetTemp += 40; } else if (player.armorTier > 0) { if (targetTemp < 50) targetTemp += 15 * player.armorTier; if (targetTemp > 60) targetTemp += 10 * player.armorTier; }
+
+        if (player.temp < targetTemp) player.temp += 0.05; if (player.temp > targetTemp) player.temp -= 0.05; player.temp = Math.max(-10, Math.min(110, player.temp));
+        if (player.hunger > 70 && player.thirst > 70 && player.temp > 40 && player.temp < 60) player.health = Math.min(100, player.health + 0.02);
+        if (player.hunger <= 0) { player.hunger = 0; player.health -= 0.03; } if (player.thirst <= 0) { player.thirst = 0; player.health -= 0.05; }
+        if (player.temp >= 100 || player.temp <= 0) { player.health -= 0.016; if(time%60===0) addShake(2); } else if (player.temp < 20 || player.temp > 85) player.health -= 0.004; 
+
+        if (player.attackTimer > 0) player.attackTimer--;
+        handleAttack(); updateAnimals(); 
+
+        // ЗАЩИТА CREATIVE РЕЖИМА ОТ СМЕРТИ
+        if (player.isCreative) {
+            player.health = 100;
+            player.hunger = 100;
+            player.thirst = 100;
+            player.temp = 50;
+        }
+
+        if (player.health <= 0 && !isGameOver) {
+            isGameOver = true; document.getElementById('game-over').style.display = 'flex'; document.getElementById('game-over').style.flexDirection = 'column';
+            let cause = "ВЫ ПОГИБЛИ"; if (player.hunger <= 0) cause = "УМЕР ОТ ГОЛОДА"; else if (player.thirst <= 0) cause = "УМЕР ОТ ЖАЖДЫ"; else if (player.temp <= 0) cause = "ЗАМЕРЗ НАСМЕРТЬ"; else if (player.temp >= 100) cause = "СГОРЕЛ ОТ ПЕРЕГРЕВА";
+            document.getElementById('death-cause').innerText = cause;
+        }
+
+        let nearChest = w.buildables.find(b => b.type === 'chest' && distSq(player.x, player.y, b.x, b.y) < 10000);
+        let nearPortalObj = w.buildables.find(b => b.type === 'portal' && distSq(player.x, player.y, b.x, b.y) < 10000);
+        let nearPortal = w.resources.some(r => (r.type === 'cave_entrance' || r.type === 'cave_exit' || r.type === 'lava_entrance' || r.type === 'lava_exit' || r.type === 'void_exit') && distSq(player.x, player.y, r.x, r.y) < 10000);
+        let nearGnome = w.animals.find(a => a.type === 'gnome_trader' && distSq(player.x, player.y, a.x, a.y) < 4000);
+        let nearWolf = w.animals.find(a => a.type === 'wolf' && !a.tamed && distSq(player.x, player.y, a.x, a.y) < 4000);
+        let nearDoor = w.buildables.find(b => b.type === 'wood_door' && distSq(player.x, player.y, b.x, b.y) < 4000);
+        let nearPlanter = w.buildables.find(b => b.type === 'planter' && b.ready && distSq(player.x, player.y, b.x, b.y) < 4000);
+        let btn = document.getElementById('btn-interact');
+        
+        if(nearChest) { btn.style.display = 'block'; btn.innerText = currentChest ? 'ЗАКРЫТЬ СУНДУК (E)' : 'ОТКРЫТЬ СУНДУК (E)'; } 
+        else if (nearDoor) { btn.style.display = 'block'; btn.innerText = nearDoor.open ? 'ЗАКРЫТЬ ДВЕРЬ (E)' : 'ОТКРЫТЬ ДВЕРЬ (E)'; if(currentChest) closeChest(); }
+        else if (nearPlanter) { btn.style.display = 'block'; btn.innerText = 'СОБРАТЬ ЯГОДЫ (E)'; if(currentChest) closeChest(); }
+        else if (nearPortalObj) { btn.style.display = 'block'; btn.innerText = 'ВОЙТИ В ПУСТОТУ (E)'; if(currentChest) closeChest(); }
+        else if (nearWolf && player.inventory.meat > 0) { btn.style.display = 'block'; btn.innerText = 'ПРИРУЧИТЬ ВОЛКА (МЯСО) (E)'; if(currentChest) closeChest(); }
+        else if (nearGnome) { btn.style.display = 'block'; btn.innerText = 'ТОРГОВАТЬ: 5 ЖАР.МЯСА -> ПЫЛЬ (E)'; if(currentChest) closeChest(); } 
+        else if(nearPortal || (isWater(player.x, player.y) && player.inventory.empty_bottle > 0)) { 
+            btn.style.display = 'block'; if (nearPortal) btn.innerText = inCave ? 'ВЫЙТИ ИЗ ПЕЩЕРЫ/ПУСТОТЫ (E)' : 'ВОЙТИ В ПЕЩЕРУ (E)'; else btn.innerText = 'ВЗЯТЬ ВОДУ (E)'; if(currentChest) closeChest();
+        } else { btn.style.display = 'none'; if(currentChest) closeChest(); }
+
+        let nearWorkbench = w.buildables.some(b => b.type === 'workbench' && distSq(player.x, player.y, b.x, b.y) < 10000);
+        document.getElementById('tab-btn-workbench').style.display = nearWorkbench ? 'block' : 'none';
+        if(!nearWorkbench && document.getElementById('tab-workbench').classList.contains('active')) setCraftTab('tool');
+    }
+
+    function drawDecorations(ctx, item) {
+        ctx.save(); ctx.translate(item.x, item.y); let sway = Math.floor(Math.sin(time * 0.005 + (item.offset||0)) * 2);
+        if(item.type === 'grass') { drawP(ctx, sway, -10, 4, 10, '#27ae60', null); drawP(ctx, sway+4, -8, 4, 8, '#2ecc71', null); drawP(ctx, sway-4, -6, 4, 6, '#27ae60', null); } 
+        else if(item.type === 'flower') { drawP(ctx, sway, -12, 4, 12, '#2ecc71'); drawP(ctx, sway-2, -16, 8, 8, '#f1c40f'); } 
+        else if(item.type === 'tumbleweed') { let bounce = Math.floor(-Math.abs(Math.sin(time*0.05))*10); drawP(ctx, -10, bounce-10, 20, 20, '#8d6e63'); } 
+        else if(item.type === 'stalactite') { drawP(ctx, -10, -40, 20, 30, '#7f8c8d'); drawP(ctx, -6, -10, 12, 10, '#95a5a6'); drawP(ctx, -2, 0, 4, 10, '#bdc3c7'); }
+        else if(item.type === 'snow_patch') { drawP(ctx, -10, -5, 20, 10, '#ffffff', null); drawP(ctx, -5, -8, 10, 16, '#ecf0f1', null); }
+        ctx.restore();
+    }
+
+    function drawAnimal(o, tCtx = ctx) {
+        tCtx.save(); tCtx.translate(o.x, o.y);
+        let isMoving = Math.abs(o.vx) > 0.1 || Math.abs(o.vy) > 0.1; let walkCycle = isMoving ? time * 0.1 : 0; let angle = Math.atan2(o.vy, o.vx); let bounce = isMoving ? Math.floor(Math.abs(Math.sin(walkCycle/2))*3) : 0;
+        if (o.frozen > 0) tCtx.filter = 'sepia(100%) hue-rotate(180deg) saturate(200%)';
+
+        if (!['fish', 'crab', 'ice_shark', 'manta_ray', 'piranha', 'jellyfish', 'dolphin', 'sandworm', 'stone_mole', 'toxic_toad', 'lava_crab'].includes(o.type)) { tCtx.fillStyle = 'rgba(0, 0, 0, 0.4)'; tCtx.fillRect(-o.size/2, o.size/3, o.size, o.size/3); }
+        tCtx.rotate(angle);
+        if(!['fish','crab','ice_shark','manta_ray','piranha','jellyfish','dolphin','sandworm','stone_mole', 'toxic_toad', 'lava_crab'].includes(o.type)) tCtx.translate(0, -bounce);
+
+        let legSwing = isMoving ? Math.sin(walkCycle)*6 : 0; let tailSwing = isMoving ? Math.sin(walkCycle)*4 : 0;
+
+        if(o.type === 'sandworm') {
+            if(o.timer > 0 && o.state === 'chase') { tCtx.globalAlpha = 0.2; drawP(tCtx, -o.size/2, -o.size/2, o.size, o.size, '#333'); tCtx.globalAlpha = 1; } 
+            else { drawP(tCtx, -o.size/2, -o.size/2.5, o.size, o.size*0.8, '#d35400'); drawP(tCtx, -o.size, -o.size/3, o.size/2, o.size*0.6, '#e67e22'); drawP(tCtx, o.size/2, -o.size/3, o.size/2, o.size*0.6, '#111'); drawP(tCtx, o.size*0.7, -o.size/4, 4, 4, '#fff'); drawP(tCtx, o.size*0.7, o.size/4 - 4, 4, 4, '#fff'); }
+        } else if(o.type === 'jellyfish') {
+            tCtx.globalAlpha = 0.8; drawP(tCtx, -o.size/2, -o.size/2, o.size, o.size, '#00ffff'); let sway = Math.sin(time*0.05)*4; drawP(tCtx, -o.size, -8+sway, o.size/2, 4, '#00cec9'); drawP(tCtx, -o.size, 4-sway, o.size/2, 4, '#00cec9'); tCtx.globalAlpha = 1.0;
+        } else if(o.type === 'manta_ray') {
+            drawP(tCtx, -o.size/2, -o.size/1.5, o.size, o.size*1.3, '#1e272e'); drawP(tCtx, -o.size, -2 + tailSwing, o.size/2, 4, '#1e272e'); drawP(tCtx, o.size/4, -o.size/4, 6, 6, '#00d2d3'); drawP(tCtx, o.size/4, o.size/4 - 6, 6, 6, '#00d2d3');
+        } else if(o.type === 'ice_shark') {
+            tCtx.globalAlpha = 0.9; drawP(tCtx, -o.size, -4 + tailSwing, o.size/2, 8, '#74b9ff'); drawP(tCtx, -o.size/2, -o.size/4, o.size, o.size/2, '#74b9ff'); drawP(tCtx, -o.size/4, -o.size/2, o.size/2, o.size, '#74b9ff'); drawP(tCtx, o.size/2, -o.size/5, o.size/3, o.size/2.5, '#00ffff'); drawP(tCtx, o.size/2, -6, 6, 6, '#fff'); tCtx.globalAlpha = 1.0;
+        } else if(o.type === 'dolphin') {
+            drawP(tCtx, -o.size, -4 + tailSwing, o.size/2, 8, '#74b9ff'); drawP(tCtx, -o.size/2, -o.size/4, o.size, o.size/2, '#74b9ff'); drawP(tCtx, -o.size/4, -o.size/2, o.size/3, o.size, '#74b9ff'); drawP(tCtx, o.size/2, -o.size/6, o.size/4, o.size/3, '#0097e6'); drawP(tCtx, o.size/2, -4, 4, 4, '#111', ''); 
+        } else if(o.type === 'piranha') {
+            drawP(tCtx, -o.size, -o.size/2 + tailSwing, o.size/2, o.size, '#00b894'); drawP(tCtx, -o.size/2, -o.size/2, o.size, o.size, '#00b894'); drawP(tCtx, o.size/2, -o.size/3, o.size/3, o.size/1.5, '#d63031'); drawP(tCtx, o.size/3, -4, 4, 4, '#fff');
+        } else if(o.type === 'deer') {
+            drawP(tCtx, -o.size/2+4, -o.size/2+legSwing, 6, o.size, '#6d4c41'); drawP(tCtx, o.size/4, -o.size/2-legSwing, 6, o.size, '#6d4c41'); drawP(tCtx, -o.size/2, -o.size/3, o.size, o.size/1.5, '#8b4513'); drawP(tCtx, -o.size/2 - 6, -2 + tailSwing, 6, 4, '#fff'); drawP(tCtx, o.size/2, -o.size/4, o.size/3, o.size/2, '#8b4513'); drawP(tCtx, o.size/2 + 4, -o.size/2 - 4, 4, 12, '#d2b48c'); drawP(tCtx, o.size/2 + 4, o.size/2 - 8, 4, 12, '#d2b48c');
+        } else if(o.type === 'penguin') {
+            let waddle = isMoving ? Math.sin(walkCycle)*4 : 0; drawP(tCtx, -o.size/2, -o.size/2, o.size, o.size, '#2d3436'); drawP(tCtx, -o.size/4, -o.size/3, o.size*0.75, o.size/1.5, '#fff'); drawP(tCtx, 0, o.size/2 - waddle, 10, 6, '#2d3436'); drawP(tCtx, 0, -o.size/2 - 6 + waddle, 10, 6, '#2d3436'); drawP(tCtx, o.size/2, -4, 8, 8, '#e67e22'); drawP(tCtx, o.size/4, -8, 4, 4, '#111', ''); drawP(tCtx, o.size/4, 4, 4, 4, '#111', ''); 
+        } else if(o.type === 'polar_bear' || o.type === 'bear') {
+            let c1 = o.type === 'polar_bear' ? '#dfe6e9' : '#4e342e'; let c2 = o.type === 'polar_bear' ? '#fff' : '#3e2723';
+            drawP(tCtx, -o.size/2+8, -o.size/2+legSwing, 12, o.size, c2); drawP(tCtx, o.size/4, -o.size/2-legSwing, 12, o.size, c2); drawP(tCtx, -o.size/2, -o.size/2.5, o.size, o.size/1.25, c1); drawP(tCtx, o.size/2, -o.size/3, o.size/2.5, o.size/1.5, c1); drawP(tCtx, o.size/2 + 2, -o.size/3 - 4, 6, 6, c2); drawP(tCtx, o.size/2 + 2, o.size/3 - 2, 6, 6, c2); drawP(tCtx, o.size/2 + 12, -4, 6, 8, '#111'); 
+        } else if(o.type === 'snow_leopard') {
+            drawP(tCtx, -o.size/2+4, -o.size/2+legSwing, 8, o.size, '#b2bec3'); drawP(tCtx, o.size/4, -o.size/2-legSwing, 8, o.size, '#b2bec3'); drawP(tCtx, -o.size/2, -o.size/3, o.size, o.size/1.5, '#dfe6e9'); drawP(tCtx, -o.size, -2 + tailSwing, o.size/2, 4, '#dfe6e9'); drawP(tCtx, -o.size/4, -6, 4, 4, '#636e72'); drawP(tCtx, 0, 4, 4, 4, '#636e72'); drawP(tCtx, o.size/2, -o.size/4, o.size/3, o.size/2, '#dfe6e9'); drawP(tCtx, o.size/2 + 4, -4, 4, 4, '#0984e3'); 
+        } else if(o.type === 'rabbit') {
+            drawP(tCtx, -o.size/2, -o.size/3, o.size*0.8, o.size/1.5, '#ecf0f1'); drawP(tCtx, -o.size/2 - 4, -4, 6, 8, '#fff'); drawP(tCtx, o.size/4, -o.size/4, o.size/2, o.size/2, '#fff'); drawP(tCtx, o.size/3, -o.size/2 - 4 + tailSwing, 4, 10, '#bdc3c7'); drawP(tCtx, o.size/3, o.size/2 - 6 - tailSwing, 4, 10, '#bdc3c7'); drawP(tCtx, o.size/2, -2, 4, 4, '#e74c3c'); 
+        } else if(o.type === 'wolf' || o.type === 'fox') {
+            let color = o.type === 'wolf' ? '#7f8c8d' : '#e67e22'; let dColor = o.type === 'wolf' ? '#2c3e50' : '#d35400';
+            drawP(tCtx, -o.size/2+4, -o.size/2+legSwing, 6, o.size, dColor); drawP(tCtx, o.size/4, -o.size/2-legSwing, 6, o.size, dColor); drawP(tCtx, -o.size/2, -o.size/3, o.size, o.size/1.5, color); drawP(tCtx, -o.size/1.5 - 6, -4 + tailSwing, 12, 8, o.type==='fox'?'#fff':color); drawP(tCtx, o.size/2, -o.size/4, o.size/2.5, o.size/2, color); drawP(tCtx, o.size/2 + o.size/2.5, -3, 6, 6, '#111'); drawP(tCtx, o.size/2 + 2, -o.size/4 - 4, 6, 8, dColor); drawP(tCtx, o.size/2 + 2, o.size/4 - 4, 6, 8, dColor); 
+            if(o.tamed) { drawP(tCtx, o.size/2 - 4, -o.size/4 - 2, 4, o.size/2 + 4, '#e74c3c'); } 
+        } else if(o.type === 'boar') {
+            drawP(tCtx, -o.size/2+4, -o.size/2+legSwing, 8, o.size, '#3e2723'); drawP(tCtx, o.size/4, -o.size/2-legSwing, 8, o.size, '#3e2723'); drawP(tCtx, -o.size/2, -o.size/2.5, o.size, o.size/1.25, '#5d4037'); drawP(tCtx, o.size/2, -o.size/3, o.size/3, o.size/1.5, '#4e342e'); drawP(tCtx, o.size/2 + o.size/3, -6, 6, 4, '#ecf0f1'); drawP(tCtx, o.size/2 + o.size/3, 2, 6, 4, '#ecf0f1'); drawP(tCtx, o.size/2 + 4, -2, 4, 4, '#111'); 
+        } else if(o.type === 'spider') {
+            for(let i=0; i<4; i++) { drawP(tCtx, -8 + i*6, -o.size/1.5 + tailSwing*(i%2?-1:1), 4, o.size*1.3, '#1a1a1a'); } 
+            drawP(tCtx, -o.size/2, -o.size/2.5, o.size, o.size/1.25, '#1a1a1a'); drawP(tCtx, o.size/2, -o.size/4, o.size/3, o.size/2, '#2c3e50'); drawP(tCtx, o.size/2 + 4, -6, 4, 4, '#e74c3c'); drawP(tCtx, o.size/2 + 4, 2, 4, 4, '#e74c3c'); 
+        } else if(o.type === 'crystal_bat') {
+            drawP(tCtx, -6, -8, 12, 16, '#00ffff'); let wing = isMoving ? Math.sin(time*0.2)*16 : 16; drawP(tCtx, -6, -10 - wing, 10, wing, '#00cec9'); drawP(tCtx, -6, 10, 10, wing, '#00cec9'); 
+        } else if(o.type === 'scorpion') {
+            for(let i=0; i<3; i++) { drawP(tCtx, -6 + i*6, -o.size/1.5 + tailSwing*(i%2?-1:1), 4, o.size*1.3, '#d35400'); } 
+            drawP(tCtx, -o.size/2, -o.size/3, o.size, o.size/1.5, '#e67e22'); drawP(tCtx, o.size/2, -o.size/2, o.size/3, o.size/3, '#d35400'); drawP(tCtx, o.size/2, o.size/6, o.size/3, o.size/3, '#d35400'); drawP(tCtx, -o.size, -2 + Math.sin(time*0.1)*6, o.size/2, 4, '#d35400'); drawP(tCtx, -o.size - 6, -4 + Math.sin(time*0.1)*6, 6, 8, '#c0392b'); 
+        } else if(o.type === 'camel') {
+            drawP(tCtx, -o.size/4, -o.size/2+legSwing, 8, o.size, '#d35400'); drawP(tCtx, o.size/4, -o.size/2-legSwing, 8, o.size, '#d35400'); drawP(tCtx, -o.size/2, -o.size/3, o.size, o.size/1.5, '#e67e22'); drawP(tCtx, -o.size/4, -o.size/2, o.size/3, o.size/3, '#d35400'); drawP(tCtx, 4, -o.size/2, o.size/3, o.size/3, '#d35400'); drawP(tCtx, o.size/2, -o.size/5, o.size/3, o.size/2.5, '#e67e22'); 
+        } else if(o.type === 'vulture') {
+            drawP(tCtx, -o.size/2, -o.size/4, o.size, o.size/2, '#333'); let wing = Math.sin(time*0.1)*16; drawP(tCtx, -o.size/4, -o.size/4 - wing, o.size/2, wing, '#222'); drawP(tCtx, -o.size/4, o.size/4, o.size/2, wing, '#222'); drawP(tCtx, o.size/2, -4, 10, 8, '#e74c3c'); 
+        } else if(o.type === 'mountain_guardian') {
+            drawP(tCtx, -o.size/2, -o.size/2, o.size, o.size, '#7f8c8d'); drawP(tCtx, -o.size/2.5, -o.size/2.5, o.size/1.25, o.size/1.25, '#95a5a6'); drawP(tCtx, o.size/4, -o.size/3, 16, 16, '#00ffff'); drawP(tCtx, o.size/4, o.size/6, 16, 16, '#00ffff'); if(o.state === 'wave') drawP(tCtx, -o.size/4, -o.size/1.5, o.size/2, o.size*1.3, '#9b59b6'); 
+        } else if(o.type === 'gnome_trader') {
+            drawP(tCtx, -10, -10, 20, 20, '#2980b9'); drawP(tCtx, -8, -18, 16, 12, '#f1c40f'); drawP(tCtx, -12, -8, 24, 10, '#ecf0f1'); drawP(tCtx, -15, -15, 10, 20, '#8e44ad'); 
+        } else if(o.type === 'stone_mole') {
+            drawP(tCtx, -o.size/2, -o.size/3, o.size, o.size/1.5, '#95a5a6'); let digM = o.state === 'chase' ? Math.sin(time*0.4)*6 : 0; drawP(tCtx, o.size/2 + digM, -12, 12, 8, '#7f8c8d'); drawP(tCtx, o.size/2 - digM, 4, 12, 8, '#7f8c8d'); drawP(tCtx, o.size/2, -4, 8, 8, '#fd79a8'); 
+        } else if(o.type === 'shadow_flyer') {
+            let wingF = Math.sin(time*0.2)*14; drawP(tCtx, -o.size/4, -o.size/3, o.size/2, o.size/1.5, '#111'); drawP(tCtx, -o.size/4, -o.size/3 - wingF, o.size/2, wingF, '#2c3e50'); drawP(tCtx, -o.size/4, o.size/3, o.size/2, wingF, '#2c3e50'); drawP(tCtx, o.size/4, -6, 6, 4, '#9b59b6'); drawP(tCtx, o.size/4, 2, 6, 4, '#9b59b6'); 
+        } else if(o.type === 'toxic_toad') {
+            drawP(tCtx, -o.size/2, -o.size/2, o.size, o.size, '#00e676'); drawP(tCtx, -o.size/4, -o.size/4, 8, 8, '#9b59b6'); drawP(tCtx, -o.size/4, o.size/4 - 8, 8, 8, '#9b59b6'); drawP(tCtx, o.size/2 - 8, -o.size/3, 8, 8, '#111'); drawP(tCtx, o.size/2 - 8, o.size/3 - 8, 8, 8, '#111'); 
+        } else if(o.type === 'lava_crab') {
+            drawP(tCtx, -o.size/2, -o.size/2, o.size, o.size, '#2d3436'); drawP(tCtx, -o.size/4, -o.size/4, o.size/2, o.size/2, '#ff4d00'); let clawM = isMoving ? Math.sin(time*0.2)*4 : 0; drawP(tCtx, o.size/2, -o.size/2 - 4 + clawM, 16, 16, '#2d3436'); drawP(tCtx, o.size/2, o.size/2 - 12 - clawM, 16, 16, '#2d3436'); 
+        } else if(o.type === 'fish') {
+            drawP(tCtx, -o.size, -2 + tailSwing, o.size/2, 4, o.color); drawP(tCtx, -o.size/2, -o.size/3, o.size, o.size/1.5, o.color); drawP(tCtx, o.size/4, -4, 4, 4, '#fff'); 
+        } else if(o.type === 'crab') {
+            drawP(tCtx, -8, -12, 4, 8+legSwing, '#c0392b'); drawP(tCtx, 4, -12, 4, 8-legSwing, '#c0392b'); drawP(tCtx, -8, 4, 4, 8-legSwing, '#c0392b'); drawP(tCtx, 4, 4, 4, 8+legSwing, '#c0392b'); drawP(tCtx, -10, -8, 20, 16, '#e74c3c'); drawP(tCtx, 10, -10, 8, 8, '#c0392b'); drawP(tCtx, 10, 2, 8, 8, '#c0392b'); drawP(tCtx, 4, -4, 4, 4, '#111', ''); drawP(tCtx, 4, 0, 4, 4, '#111', ''); 
+        }
+        
+        tCtx.rotate(-angle);
+        if (o.hp < o.maxHp && !['fish', 'crab', 'gnome_trader'].includes(o.type)) {
+            tCtx.fillStyle = '#000'; tCtx.fillRect(-o.size/2, -o.size/2 - 10, o.size, 4);
+            tCtx.fillStyle = (o.tamed ? '#2ecc71' : '#ff4757'); tCtx.fillRect(-o.size/2, -o.size/2 - 10, o.size * (o.hp / o.maxHp), 4);
+        }
+
+        tCtx.filter = 'none'; tCtx.restore();
+    }
+
+    function drawHumanoid(ctx, entity, isPlayer) {
+        if(entity.onRaft) return;
+        let angle = entity.lookAngle || 0; ctx.save(); ctx.translate(entity.x, entity.y);
+        let isMoving = isPlayer ? (keys.w || keys.a || keys.s || keys.d) : (time % 20 > 10); 
+        let armSwing = isMoving ? Math.floor(Math.sin(time * 0.02) * 4) : 0; let bob = isMoving ? Math.abs(Math.sin(time * 0.02)) * 4 : 0;
+        
+        ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(-entity.size/2, entity.size/3, entity.size, entity.size/3); 
+        ctx.translate(0, -bob); ctx.rotate(angle);
+        
+        drawP(ctx, -entity.size/2 - 8, -12, 8, 24, '#6d4c41', '#3e2723');
+        let armorColor = entity.shirtColor;
+        if(entity.armorTier === 1) armorColor = '#d35400'; else if(entity.armorTier === 2) armorColor = '#bdc3c7'; else if(entity.armorTier === 3) armorColor = '#00ffff'; else if(entity.armorTier === 4) armorColor = '#ecf0f1';
+        drawP(ctx, -entity.size/2, -entity.size/2, entity.size, entity.size, armorColor, entity.armorTier===3?'#fff':'#000');
+        if(entity.armorTier > 0) { let p1 = entity.armorTier === 1 ? '#e67e22' : (entity.armorTier === 2 ? '#95a5a6' : '#fff'); drawP(ctx, -4, -entity.size/2 - 4, 8, 8, p1); drawP(ctx, -4, entity.size/2 - 4, 8, 8, p1); }
+        ctx.rotate(-angle); drawP(ctx, -entity.size/2.5, -entity.size/2.5, entity.size/1.25, entity.size/1.25, entity.skinColor);
+        if (entity.gasMask || (isPlayer && player.inventory.gas_mask > 0)) { drawP(ctx, -entity.size/2.5, -4, entity.size/1.25, entity.size/2.5 + 4, '#333'); drawP(ctx, -6, 0, 4, 4, '#1abc9c'); drawP(ctx, 2, 0, 4, 4, '#1abc9c'); }
+        ctx.rotate(angle); ctx.translate(entity.size/3, 0); 
+        if(entity.health < 30) { drawP(ctx, 0, -6, 4, 4, '#c0392b', ''); drawP(ctx, 0, 2, 4, 4, '#c0392b', ''); } 
+        else { drawP(ctx, 0, -6, 6, 6, '#fff', ''); drawP(ctx, 0, 2, 6, 6, '#fff', ''); drawP(ctx, 2, -4, 4, 4, entity.eyeColor, ''); drawP(ctx, 2, 4, 4, 4, entity.eyeColor, ''); }
+        ctx.translate(-entity.size/3, 0); 
+
+        let armExt = entity.attackTimer > 15 ? 8 : 0;
+        let hR_X = Math.cos(0.8) * (14 + armSwing) + armExt; let hR_Y = Math.sin(0.8) * (14 + armSwing);
+        let hL_X = Math.cos(-0.8) * (14 - armSwing) + armExt; let hL_Y = Math.sin(-0.8) * (14 - armSwing);
+
+        drawP(ctx, hR_X-4, hR_Y-4, 8, 8, entity.skinColor); drawP(ctx, hL_X-4, hL_Y-4, 8, 8, entity.skinColor);
+
+        if (entity.equip !== 'hands') {
+            ctx.translate(hR_X, hR_Y); let wLen = (entity.equip.includes('spear') || entity.equip==='harpoon') ? 35 : (entity.equip.includes('sword') ? 25 : 20); 
+            drawP(ctx, 0, -2, wLen, 4, entity.equip==='diamond_sword' ? '#00ffff' : (entity.equip==='ice_sword'?'#74b9ff':'#8d6e63')); 
+            
+            if (entity.equip.includes('axe')) { drawP(ctx, wLen-6, -10, 12, 20, entity.equip.includes('iron') ? '#bdc3c7' : '#7f8c8d'); } 
+            else if (entity.equip.includes('pickaxe')) { drawP(ctx, wLen-6, -16, 12, 32, entity.equip==='storm_pickaxe'?'#9b59b6':(entity.equip.includes('iron') ? '#bdc3c7' : '#7f8c8d')); } 
+            else if (entity.equip.includes('spear')) { drawP(ctx, wLen, -4, 12, 8, '#bdc3c7'); } 
+            else if (entity.equip === 'harpoon') { drawP(ctx, wLen, -4, 16, 8, '#bdc3c7'); drawP(ctx, wLen+4, -8, 4, 4, '#bdc3c7'); drawP(ctx, wLen+4, 4, 4, 4, '#bdc3c7'); } 
+            else if (entity.equip === 'grappling_hook') { drawP(ctx, wLen-10, -4, 8, 8, '#7f8c8d'); drawP(ctx, wLen-2, -6, 6, 12, '#bdc3c7'); } 
+            else if (entity.equip.includes('sword')) { drawP(ctx, 4, -10, 6, 20, '#333'); drawP(ctx, 10, -4, 20, 8, entity.equip==='diamond_sword' ? '#00ffff' : (entity.equip==='ice_sword'?'#74b9ff':(entity.equip==='iron_sword' ? '#ecf0f1' : '#bdc3c7'))); } 
+            else if (entity.equip === 'bow') { drawP(ctx, 0, -16, 4, 32, '#8d6e63'); drawP(ctx, 4, -16, 8, 4, '#8d6e63'); drawP(ctx, 4, 12, 8, 4, '#8d6e63'); drawP(ctx, 12, -16, 2, 32, '#fff', ''); } 
+            else if (entity.equip === 'fire_staff') { drawP(ctx, 0, -2, 24, 4, '#5d4037'); drawP(ctx, 22, -6, 12, 12, '#e74c3c'); drawP(ctx, 26, -2, 4, 4, '#f1c40f', ''); }
+            else if (entity.equip === 'lightning_staff') { drawP(ctx, 0, -2, 24, 4, '#f1c40f'); drawP(ctx, 22, -8, 12, 16, '#00ffff'); drawP(ctx, 28, -2, 4, 4, '#fff', ''); }
+            else if (entity.equip === 'torch') { drawP(ctx, wLen, -6, 12, 12, '#e67e22'); drawP(ctx, wLen+2, -2, 8, 8, '#f1c40f'); }
+        }
+        ctx.restore();
+    }
+
+    function drawHUD() {
+        ctx.setTransform(1, 0, 0, 1, 0, 0); let barW = 120, barH = 26; let gap = 15; let totalW = 4 * barW + 3 * gap; let startX = canvas.width / 2 - totalW / 2; let y = canvas.height - 40;
+        let stats = [ { val: player.health, col: '#ff4757', icon: '❤', name: 'ЗДОРОВЬЕ' }, { val: player.hunger, col: '#ff9f43', icon: '🍖', name: 'ГОЛОД' }, { val: player.thirst, col: '#00d2d3', icon: '💧', name: 'ЖАЖДА' }, { val: player.temp, col: player.temp>70?'#e74c3c':(player.temp<30?'#3498db':'#2ecc71'), icon: '🌡', name: 'ТЕМП.' } ];
+        ctx.font = '10px "Press Start 2P"'; ctx.textBaseline = 'middle';
+        stats.forEach((s, i) => {
+            let x = startX + i * (barW + gap);
+            ctx.fillStyle = '#111'; ctx.fillRect(x, y, barW, barH); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.strokeRect(x, y, barW, barH);
+            ctx.fillStyle = s.col; let fillW = Math.max(0, Math.min(100, s.val)) / 100 * barW; if(fillW > 0) ctx.fillRect(x, y, fillW, barH);
+            ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(s.icon, x + 5, y + barH/2 + 2);
+            ctx.textAlign = 'right'; ctx.fillText(Math.floor(s.val) + '%', x + barW - 5, y + barH/2 + 2);
+            ctx.textAlign = 'center'; ctx.fillStyle = '#ccc'; ctx.fillText(s.name, x + barW/2, y - 10);
+        });
+
+        let mSize = 120; let mX = canvas.width - mSize - 20; let mY = canvas.height - mSize - 80;
+        
+        ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(mX, mY, mSize, mSize);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(mX, mY, mSize, mSize);
+
+        if (!inCave && w !== worlds.void_realm) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(mX, mY, mSize, mSize);
+            ctx.clip();
+            
+            let pMapX = (player.x / worlds.overworld.size) * 600;
+            let pMapY = (player.y / worlds.overworld.size) * 600;
+            
+            ctx.drawImage(mapCanvas, pMapX - mSize/2, pMapY - mSize/2, mSize, mSize, mX, mY, mSize, mSize);
+            
+            markers.forEach(m => {
+                let mx = (m.x / worlds.overworld.size) * 600;
+                let my = (m.y / worlds.overworld.size) * 600;
+                let dx = mx - pMapX; let dy = my - pMapY;
+                if(Math.abs(dx) < mSize/2 && Math.abs(dy) < mSize/2) {
+                    ctx.fillStyle = '#f1c40f'; ctx.fillRect(mX + mSize/2 + dx - 2, mY + mSize/2 + dy - 2, 4, 4);
+                }
+            });
+            ctx.restore();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(mX, mY, mSize, mSize);
+        }
+
+        ctx.fillStyle = '#00ffff'; ctx.fillRect(mX + mSize/2 - 2, mY + mSize/2 - 2, 4, 4);
+
+        w.animals.forEach(a => {
+            if(!a || a.type === 'gnome_trader') return;
+            let dx = (a.x - player.x) / 20; 
+            let dy = (a.y - player.y) / 20;
+            if (Math.abs(dx) < mSize/2 - 2 && Math.abs(dy) < mSize/2 - 2) {
+                if(a.tamed) ctx.fillStyle = '#2ecc71'; 
+                else if(a.type === 'mountain_guardian') ctx.fillStyle = '#9b59b6';
+                else ctx.fillStyle = '#ff4757';
+                ctx.fillRect(mX + mSize/2 + dx - 1, mY + mSize/2 + dy - 1, 3, 3);
+            }
+        });
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (inCave || w === worlds.void_realm) { 
+            if (w === worlds.lava_cave) {
+                ctx.fillStyle = '#2d3436'; ctx.fillRect(0,0,canvas.width, canvas.height); ctx.save(); ctx.scale(ZOOM, ZOOM); ctx.translate(-camera.x, -camera.y);
+                let viewX = camera.x, viewY = camera.y, viewW = canvas.width/ZOOM, viewH = canvas.height/ZOOM; let tSize = 40; let startX = Math.floor(viewX / tSize) * tSize; let startY = Math.floor(viewY / tSize) * tSize;
+                for(let x = startX - tSize; x < viewX + viewW + tSize; x += tSize) { for(let y = startY - tSize; y < viewY + viewH + tSize; y += tSize) { if (isLava(x + tSize/2, y + tSize/2)) { ctx.fillStyle = '#ff4d00'; ctx.fillRect(x, y, tSize + 1, tSize + 1); } } } ctx.restore();
+            } else if (w === worlds.void_realm) {
+                ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0,0,canvas.width, canvas.height); ctx.save(); ctx.scale(ZOOM, ZOOM); ctx.translate(-camera.x, -camera.y);
+                let viewX = camera.x, viewY = camera.y, viewW = canvas.width/ZOOM, viewH = canvas.height/ZOOM; let tSize = 40; let startX = Math.floor(viewX / tSize) * tSize; let startY = Math.floor(viewY / tSize) * tSize;
+                for(let x = startX - tSize; x < viewX + viewW + tSize; x += tSize) {
+                    for(let y = startY - tSize; y < viewY + viewH + tSize; y += tSize) {
+                        ctx.strokeStyle = '#1a0a2a'; ctx.lineWidth = 1; ctx.strokeRect(x, y, tSize, tSize);
+                    }
+                } ctx.restore();
+            } else {
+                ctx.save(); ctx.scale(ZOOM, ZOOM); ctx.translate(-camera.x, -camera.y); let viewX = camera.x, viewY = camera.y, viewW = canvas.width/ZOOM, viewH = canvas.height/ZOOM; let tSize = 40; let startX = Math.floor(viewX / tSize) * tSize; let startY = Math.floor(viewY / tSize) * tSize;
+                for(let x = startX - tSize; x < viewX + viewW + tSize; x += tSize) {
+                    for(let y = startY - tSize; y < viewY + viewH + tSize; y += tSize) {
+                        let cB = getBiome(x + tSize/2, y + tSize/2);
+                        if (cB === 'cave_mine') ctx.fillStyle = '#1e1e1e'; else if (cB === 'cave_crystal') ctx.fillStyle = '#1a1a2e'; else if (cB === 'cave_mushroom') ctx.fillStyle = '#2c1e2e'; else ctx.fillStyle = '#1a1a1a';
+                        ctx.fillRect(x, y, tSize + 1, tSize + 1);
+                        if ((cB === 'cave_mushroom' || cB === 'cave_mine') && isGas(x + tSize/2, y + tSize/2)) { ctx.fillStyle = 'rgba(26, 188, 156, 0.2)'; ctx.fillRect(x, y, tSize + 1, tSize + 1); }
+                    }
+                } ctx.restore();
+            }
+        } else {
+            ctx.save(); ctx.scale(ZOOM, ZOOM); ctx.translate(-camera.x, -camera.y);
+            let viewX = camera.x, viewY = camera.y, viewW = canvas.width/ZOOM, viewH = canvas.height/ZOOM; let tSize = 40; let startX = Math.floor(viewX / tSize) * tSize; let startY = Math.floor(viewY / tSize) * tSize;
+            for(let x = startX - tSize; x < viewX + viewW + tSize; x += tSize) {
+                for(let y = startY - tSize; y < viewY + viewH + tSize; y += tSize) {
+                    let b = getBiome(x + tSize/2, y + tSize/2);
+                    if (b === 'ocean') ctx.fillStyle = '#0984e3'; else if (b === 'sand') ctx.fillStyle = '#f1c40f'; else if (b === 'sand_island') ctx.fillStyle = '#ffeaa7'; else if (b === 'grass') ctx.fillStyle = '#2ecc71'; else if (b === 'desert') ctx.fillStyle = '#e67e22'; else ctx.fillStyle = '#dfe6e9';
+                    ctx.fillRect(x, y, tSize + 1, tSize + 1);
+                }
+            } ctx.restore();
+        }
+
+        ctx.save(); ctx.scale(ZOOM, ZOOM); ctx.translate(-camera.x, -camera.y);
+        let viewX = camera.x, viewY = camera.y, viewW = canvas.width/ZOOM, viewH = canvas.height/ZOOM;
+
+        if (!inCave && w !== worlds.void_realm) {
+            w.lakes.forEach(l => {
+                if (l.bounds.maxX < viewX || l.bounds.minX > viewX + viewW || l.bounds.maxY < viewY || l.bounds.minY > viewY + viewH) return;
+                ctx.fillStyle = '#2980b9'; l.circles.forEach(c => { ctx.fillRect(c.x - c.r, c.y - c.r, c.r*2, c.r*2); }); ctx.fillStyle = '#27ae60';
+                l.lilypads.forEach(lp => { ctx.fillRect(lp.x - 10, lp.y - 10, 20, 20); ctx.fillStyle='#2980b9'; ctx.fillRect(lp.x, lp.y-10, 10, 10); ctx.fillStyle='#27ae60';});
+            });
+        }
+
+        let renderQueue = [];
+        w.decorations.forEach(d => { if(d.type !== 'stalactite') renderQueue.push({type: 'decor', obj: d, y: d.y}); });
+        w.resources.forEach(r => renderQueue.push({ type: 'res', obj: r, y: r.y }));
+        w.animals.forEach(a => { if (a) renderQueue.push({ type: 'animal', obj: a, y: a.y }) });
+        w.buildables.forEach(b => renderQueue.push({ type: 'buildable', obj: b, y: b.y }));
+        if(!inCave && w.bots) w.bots.forEach(b => renderQueue.push({ type: 'bot', obj: b, y: b.y }));
+        
+        if(gameRunning) renderQueue.push({ type: 'player', obj: player, y: player.y });
+        renderQueue.sort((a, b) => a.y - b.y);
+
+        renderQueue.forEach(item => {
+            let o = item.obj; if(!o || o.x < viewX - o.size - 50 || o.x > viewX + viewW + o.size + 50 || o.y < viewY - o.size - 50 || o.y > viewY + viewH + o.size + 50) return;
+
+            if(item.type === 'decor') drawDecorations(ctx, o);
+            else if (item.type === 'res') {
+                ctx.save(); ctx.translate(o.x, o.y); ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(-o.size/2, o.size/4, o.size, o.size/3); let shake = (o.hp < o.maxHp && o.hp > 0 && time%10 < 5) ? 2 : 0; ctx.translate(shake, 0);
+                if (o.type === 'tree') { drawP(ctx, -8, -o.size/2, 16, o.size, '#5d4037'); drawP(ctx, -o.size*0.8, -o.size, o.size*1.6, o.size*1.2, '#27ae60'); drawP(ctx, -o.size, -o.size*0.8, o.size*2, o.size*0.8, '#2ecc71'); } 
+                else if (o.type === 'snow_pine') { drawP(ctx, -8, -o.size/2, 16, o.size, '#3e2723'); drawP(ctx, -o.size*0.8, -o.size, o.size*1.6, o.size, '#2c3e50'); drawP(ctx, -o.size*0.6, -o.size-10, o.size*1.2, o.size*0.8, '#ecf0f1'); } 
+                else if (o.type === 'palm') { drawP(ctx, -4, -o.size, 8, o.size, '#8d6e63'); drawP(ctx, -o.size, -o.size*1.2, o.size*2, o.size*0.8, '#2ecc71'); } 
+                else if (o.type === 'coral') { drawP(ctx, -10, -o.size/2, 20, o.size, '#fd79a8'); drawP(ctx, -20, -o.size/1.5, 12, 20, '#e84393'); drawP(ctx, 10, -o.size/3, 14, 14, '#fab1a0'); } 
+                else if (o.type === 'seaweed') { let wT = Math.sin(time*0.05 + o.x)*4; drawP(ctx, -4+wT, -o.size, 8, o.size, '#00b894'); drawP(ctx, -10-wT, -o.size*0.8, 6, o.size*0.8, '#55efc4'); } 
+                else if (o.type === 'shipwreck') { drawP(ctx, -o.size/2, -o.size/2, o.size, o.size/1.5, '#5d4037'); drawP(ctx, -o.size/2, 0, o.size, 10, '#3e2723'); drawP(ctx, -10, -o.size, 10, o.size, '#3e2723'); } 
+                else if (o.type === 'cactus') { drawP(ctx, -10, -o.size, 20, o.size, '#2ecc71'); drawP(ctx, -24, -o.size*0.7, 14, 14, '#27ae60'); drawP(ctx, 10, -o.size*0.5, 14, 14, '#27ae60'); ctx.fillStyle = '#fff'; ctx.fillRect(-12, -o.size*0.8, 4, 4); ctx.fillRect(8, -o.size*0.4, 4, 4); } 
+                else if (o.type === 'bush') { drawP(ctx, -o.size/2, -o.size/2, o.size, o.size, '#27ae60'); if(o.hp > 0) { drawP(ctx, -o.size/4, -o.size/4, 6, 6, '#e74c3c'); drawP(ctx, o.size/4, 0, 6, 6, '#e74c3c'); } } 
+                else if (o.type === 'minecart') { drawP(ctx, -o.size/2, -o.size/3, o.size, o.size/1.5, '#8d6e63'); drawP(ctx, -o.size/2, -o.size/3, o.size, o.size/1.5, '#5d4037', '#111'); drawP(ctx, -o.size/3, 0, 8, 8, '#333'); drawP(ctx, o.size/4, 0, 8, 8, '#333'); drawP(ctx, -6, -o.size/2, 12, 10, '#bdc3c7'); } 
+                else if (o.type === 'crystal_rock') { drawP(ctx, -o.size/2, -o.size/2, o.size, o.size*0.8, '#1a1a2e'); drawP(ctx, -o.size/3, -o.size/1.5, o.size/1.5, o.size/1.5, '#00ffff'); drawP(ctx, -8, -o.size/1.5 - 8, 16, 16, '#e0ffff'); } 
+                else if (o.type === 'giant_mushroom') { drawP(ctx, -o.size/4, -o.size/2, o.size/2, o.size, '#fff'); drawP(ctx, -o.size/1.2, -o.size/1.2, o.size*1.6, o.size/1.5, '#e74c3c'); drawP(ctx, -o.size/2, -o.size/1.5, 8, 8, '#fff', ''); drawP(ctx, o.size/4, -o.size/1.2, 8, 8, '#fff', ''); } 
+                else if (o.type.includes('rock')) {
+                    drawP(ctx, -o.size/2, -o.size/2, o.size, o.size*0.8, o.type==='ice_rock'?'#b2bec3':(o.type==='cave_rock'?'#7f8c8d':(o.type==='void_rock'?'#222':'#7f8c8d'))); drawP(ctx, -o.size/3, -o.size/3, o.size/1.5, o.size/2, o.type==='ice_rock'?'#dfe6e9':(o.type==='cave_rock'?'#95a5a6':(o.type==='void_rock'?'#333':'#95a5a6')));
+                    if(o.type === 'ice_rock') { drawP(ctx, -8,-8, 12, 12, '#74b9ff'); } if(o.type === 'iron_rock') { drawP(ctx, -8,-8, 8, 8, '#bdc3c7'); drawP(ctx, 4,4, 6, 6, '#bdc3c7'); } if(o.type === 'gold_rock') { drawP(ctx, -8,-8, 8, 8, '#f1c40f'); drawP(ctx, 4,4, 6, 6, '#f1c40f'); } if(o.type === 'diamond_rock') { drawP(ctx, -8,-8, 8, 8, '#00ffff'); drawP(ctx, 4,4, 6, 6, '#00ffff'); } if(o.type === 'void_rock') { drawP(ctx, -8,-8, 8, 8, '#8e44ad'); drawP(ctx, 4,4, 6, 6, '#8e44ad'); }
+                } else if (o.type === 'cave_entrance' || o.type === 'cave_exit' || o.type === 'void_exit') { drawP(ctx, -o.size/2, -o.size/2, o.size, o.size, '#333'); drawP(ctx, -o.size/3, -o.size/3, o.size/1.5, o.size/1.5, '#000'); } 
+                else if (o.type === 'lava_entrance' || o.type === 'lava_exit') { drawP(ctx, -o.size/2, -o.size/2, o.size, o.size, '#ff4d00'); drawP(ctx, -o.size/3, -o.size/3, o.size/1.5, o.size/1.5, '#2d3436'); }
+                ctx.restore();
+            } else if (item.type === 'buildable') {
+                ctx.save(); ctx.translate(o.x, o.y); ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(-15, 5, 30, 10);
+                if(o.type === 'campfire') { drawP(ctx, -15, 0, 30, 10, '#7f8c8d'); let fScale = Math.sin(time*0.1)*2; drawP(ctx, -10, -20-fScale, 20, 20+fScale, '#e67e22'); drawP(ctx, -4, -10-fScale, 8, 10+fScale, '#f1c40f'); } 
+                else if(o.type === 'workbench') { drawP(ctx, -20, -10, 40, 20, '#8d6e63'); drawP(ctx, -16, 10, 8, 10, '#5d4037'); drawP(ctx, 8, 10, 8, 10, '#5d4037'); drawP(ctx, -12, -14, 14, 8, '#bdc3c7'); } 
+                else if(o.type === 'raft') { drawP(ctx, -30, -30, 60, 60, '#d35400'); drawP(ctx, -30, -15, 60, 4, '#8d6e63', ''); drawP(ctx, -30, 15, 60, 4, '#8d6e63', ''); } 
+                else if(o.type === 'chest') { drawP(ctx, -20, -15, 40, 30, '#8d6e63'); drawP(ctx, -20, -2, 40, 4, '#3e2723', ''); drawP(ctx, -4, -6, 8, 8, '#f1c40f'); } 
+                else if(o.type === 'wood_support') { drawP(ctx, -25, -50, 10, 50, '#8d6e63'); drawP(ctx, 15, -50, 10, 50, '#8d6e63'); drawP(ctx, -25, -45, 50, 10, '#6d4c41'); }
+                else if(o.type === 'wood_wall') { drawP(ctx, -20,-20, 40, 40, '#8d6e63'); drawP(ctx, -20,-10, 40, 2, '#5d4037',''); drawP(ctx, -20,10, 40, 2, '#5d4037',''); }
+                else if(o.type === 'stone_wall') { drawP(ctx, -20,-20, 40, 40, '#7f8c8d'); drawP(ctx, -20,-10, 40, 2, '#95a5a6',''); drawP(ctx, -10,-20, 2, 40, '#95a5a6',''); }
+                else if(o.type === 'wood_door') { 
+                    if(o.open) { drawP(ctx, -20,-20, 8, 40, '#8d6e63'); } 
+                    else { drawP(ctx, -20,-20, 40, 40, '#8d6e63'); drawP(ctx, 10, -4, 6, 8, '#f1c40f'); }
+                }
+                else if(o.type === 'planter') { 
+                    drawP(ctx, -20,-20, 40, 40, '#5d4037'); drawP(ctx, -16,-16, 32, 32, '#3e2723'); 
+                    if(o.ready) { drawP(ctx, -10,-10, 20, 20, '#2ecc71',''); drawP(ctx, -6,-6, 6, 6, '#e74c3c'); drawP(ctx, 4,4, 6, 6, '#e74c3c'); }
+                    else { drawP(ctx, -4,-4, 8, 8, '#27ae60',''); }
+                }
+                else if(o.type === 'portal') {
+                    drawP(ctx, -24,-40, 48, 60, '#2c3e50'); drawP(ctx, -18,-34, 36, 48, '#8e44ad'); 
+                    let swirl = Math.sin(time*0.1)*8; drawP(ctx, -8-swirl/2,-20, 16+swirl, 20, '#000'); 
+                }
+                ctx.restore();
+            } else if (item.type === 'animal') drawAnimal(o);
+            else if (item.type === 'player' || item.type === 'bot') { drawHumanoid(ctx, o, item.type === 'player'); }
+        });
+
+        particles.forEach(p => { ctx.globalAlpha = p.life; drawP(ctx, p.x, p.y, p.size, p.size, p.color, null); ctx.globalAlpha = 1.0; });
+        floatingTexts.forEach(t => { ctx.globalAlpha = t.life; ctx.fillStyle = t.color; ctx.font = '12px "Press Start 2P"'; ctx.textAlign='center'; ctx.fillText(t.text, t.x, t.y); ctx.globalAlpha = 1.0; });
+        projectiles.forEach(p => { 
+            if(p.type === 'fireball') { drawP(ctx, p.x-6, p.y-6, 12, 12, '#e74c3c'); drawP(ctx, p.x-2, p.y-2, 4, 4, '#f1c40f'); }
+            else if(p.type === 'lightning') { drawP(ctx, p.x-8, p.y-8, 16, 16, '#00ffff'); drawP(ctx, p.x-4, p.y-4, 8, 8, '#fff'); }
+            else { drawP(ctx, p.x, p.y, p.size || (p.type.includes('magic')||p.type.includes('blast')?12:6), p.size || (p.type.includes('magic')||p.type.includes('blast')?12:6), p.type==='boss_magic'?'#e74c3c':(p.type==='water_blast'?'#00a8ff':'#bdc3c7')); } 
+        });
+
+        if(inCave && w === worlds.cave) { w.decorations.forEach(d => { if(d.type === 'stalactite' && d.x > viewX-50 && d.x < viewX+viewW+50 && d.y > viewY-50 && d.y < viewY+viewH+50) drawDecorations(ctx, d); }); }
+
+        ctx.restore();
+
+        let cycleTime = time % 900000; let darknessAlpha = 0; let ambientTint = '';
+        if (cycleTime < 540000) { darknessAlpha = 0; }
+        else if (cycleTime < 600000) { darknessAlpha = ((cycleTime - 540000) / 60000) * 0.95; ambientTint = `rgba(80, 20, 0, ${darknessAlpha})`; }
+        else if (cycleTime < 840000) { darknessAlpha = 0.95; ambientTint = `rgba(0, 0, 15, ${darknessAlpha})`; }
+        else { darknessAlpha = 0.95 - ((cycleTime - 840000) / 60000) * 0.95; ambientTint = `rgba(50, 30, 20, ${darknessAlpha})`; }
+        if (inCave || w === worlds.void_realm) { darknessAlpha = 0.98; ambientTint = w === worlds.lava_cave ? 'rgba(30, 10, 0, 0.98)' : (w === worlds.void_realm ? 'rgba(15, 0, 30, 0.98)' : 'rgba(0,0,0,0.98)'); }
+
+        if (darknessAlpha > 0.01) {
+            dCtx.globalCompositeOperation = 'source-over'; dCtx.clearRect(0,0, darkCanv.width, darkCanv.height);
+            dCtx.fillStyle = ambientTint; dCtx.fillRect(0,0, darkCanv.width, darkCanv.height); dCtx.globalCompositeOperation = 'destination-out';
+            
+            let pHasLamp = player.inventory.headlamp > 0; let lightRadius = player.equip === 'torch' ? 300 : (pHasLamp ? 250 : (inCave || w === worlds.void_realm ? 100 : 120));
+            w.buildables.forEach(b => { 
+                if(b.type === 'campfire' && distance(player.x, player.y, b.x, b.y) < canvas.width/ZOOM) { 
+                    let scrX = (b.x-camera.x)*ZOOM; let scrY = (b.y-camera.y)*ZOOM; 
+                    dCtx.fillStyle = 'rgba(255,255,255,1)'; dCtx.fillRect(scrX-100, scrY-100, 200, 200); dCtx.fillStyle = 'rgba(255,255,255,0.5)'; dCtx.fillRect(scrX-150, scrY-150, 300, 300); dCtx.fillStyle = 'rgba(255,255,255,0.2)'; dCtx.fillRect(scrX-200, scrY-200, 400, 400);
+                }
+                if(b.type === 'portal' && distance(player.x, player.y, b.x, b.y) < canvas.width/ZOOM) { 
+                    let scrX = (b.x-camera.x)*ZOOM; let scrY = (b.y-camera.y)*ZOOM; 
+                    dCtx.fillStyle = 'rgba(255,255,255,0.8)'; dCtx.fillRect(scrX-50, scrY-50, 100, 100); dCtx.fillStyle = 'rgba(255,255,255,0.3)'; dCtx.fillRect(scrX-100, scrY-100, 200, 200);
+                }
+            });
+
+            if (inCave && w === worlds.cave) {
+                w.resources.forEach(r => {
+                    if (r.type === 'crystal_rock' && distance(player.x, player.y, r.x, r.y) < canvas.width/ZOOM) {
+                        let scrX = (r.x-camera.x)*ZOOM; let scrY = (r.y-camera.y)*ZOOM; dCtx.fillStyle = 'rgba(255,255,255,0.8)'; dCtx.fillRect(scrX-50, scrY-50, 100, 100); dCtx.fillStyle = 'rgba(255,255,255,0.3)'; dCtx.fillRect(scrX-100, scrY-100, 200, 200);
+                    }
+                    if (r.type === 'giant_mushroom' && distance(player.x, player.y, r.x, r.y) < canvas.width/ZOOM) { let scrX = (r.x-camera.x)*ZOOM; let scrY = (r.y-camera.y)*ZOOM; dCtx.fillStyle = 'rgba(255,255,255,0.4)'; dCtx.fillRect(scrX-40, scrY-40, 80, 80); }
+                });
+            }
+
+            w.animals.forEach(a => {
+                if((a.type === 'spider' || a.type === 'crystal_bat' || a.type === 'jellyfish' || a.type === 'lava_crab' || a.type === 'toxic_toad') && distance(player.x, player.y, a.x, a.y) < canvas.width/ZOOM) {
+                    let scrX = (a.x-camera.x)*ZOOM; let scrY = (a.y-camera.y)*ZOOM; dCtx.fillStyle = 'rgba(255,255,255,0.5)'; dCtx.fillRect(scrX-60, scrY-60, 120, 120);
+                }
+            });
+            
+            let pScrX = canvas.width/2; let pScrY = canvas.height/2; let lRadZ = lightRadius*ZOOM;
+            dCtx.fillStyle = 'rgba(255,255,255,1)'; dCtx.fillRect(pScrX - lRadZ*0.4, pScrY - lRadZ*0.4, lRadZ*0.8, lRadZ*0.8);
+            dCtx.fillStyle = 'rgba(255,255,255,0.5)'; dCtx.fillRect(pScrX - lRadZ*0.7, pScrY - lRadZ*0.7, lRadZ*1.4, lRadZ*1.4);
+            dCtx.fillStyle = 'rgba(255,255,255,0.2)'; dCtx.fillRect(pScrX - lRadZ, pScrY - lRadZ, lRadZ*2, lRadZ*2);
+            ctx.drawImage(darkCanv, 0, 0);
+        }
+
+        if (player.coolingBuff > 0) { ctx.fillStyle = `rgba(116, 185, 255, 0.2)`; ctx.fillRect(0,0, canvas.width, canvas.height); }
+        else if (player.temp < 30) { ctx.fillStyle = `rgba(0, 200, 255, ${0.3 - player.temp/100})`; ctx.fillRect(0,0, canvas.width, canvas.height); } 
+        else if (player.temp > 70) { ctx.fillStyle = `rgba(255, 100, 0, ${(player.temp-70)/100})`; ctx.fillRect(0,0, canvas.width, canvas.height); }
+
+        if(gameRunning && !isGameOver) { 
+            drawHUD(); 
+        }
+    }
+
+    function setCraftTab(tabId) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.querySelectorAll('.craft-list-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-btn-' + tabId).classList.add('active'); document.getElementById('tab-' + tabId).classList.add('active');
+    }
+
+    function showTooltip(e, key) {
+        const tt = document.getElementById('tooltip'); const data = itemData[key]; if(!data) return;
+        tt.style.display = 'block'; tt.style.left = e.pageX + 15 + 'px'; tt.style.top = e.pageY + 15 + 'px'; tt.innerHTML = `<strong style="color:var(--blue)">${data.name}</strong><br>${data.desc}`;
+    }
+    function hideTooltip() { document.getElementById('tooltip').style.display = 'none'; }
+
+    function handleItemClick(key) {
+        if(!gameRunning || isGameOver || isPaused || showMap) return;
+        
+        if(currentChest) { if(player.inventory[key] > 0) { player.inventory[key]--; currentChest.storage[key] = (currentChest.storage[key]||0) + 1; renderChest(); updateUI(); } return; }
+
+        const action = itemData[key]?.action;
+        if(itemData[key].cat === 'gear' && !action && key !== 'arctic_coat' && !key.includes('armor') && key !== 'flippers' && key !== 'gas_mask' && key !== 'headlamp') { player.equip = player.equip === key ? 'hands' : key; }
+        else if (key === 'arctic_coat') { player.armorTier = player.armorTier === 4 ? 0 : 4; }
+        else if (key.includes('armor')) { let num = parseInt(key.split('_')[1]); player.armorTier = player.armorTier === num ? 0 : num; }
+        else if (action === 'eat' && player.inventory[key] > 0 && player.hunger < 100) { player.inventory[key]--; player.hunger = Math.min(100, player.hunger + 15); } 
+        else if (action === 'heal' && player.inventory[key] > 0) { player.inventory[key]--; player.health = Math.min(100, player.health + 30); }
+        else if (action === 'eat_raw' && player.inventory[key] > 0) { player.inventory[key]--; player.hunger = Math.min(100, player.hunger + 25); player.health -= 10; addShake(3); } 
+        else if (action === 'eat_cooked' && player.inventory[key] > 0) { player.inventory[key]--; player.hunger = Math.min(100, player.hunger + 40); player.health = Math.min(100, player.health + 20); } 
+        else if (action === 'eat_shroom' && player.inventory[key] > 0) { player.inventory[key]--; player.hunger = Math.min(100, player.hunger + 10); player.health -= 5; addShake(3); } 
+        else if (action === 'eat_cooked_shroom' && player.inventory[key] > 0) { player.inventory[key]--; player.hunger = Math.min(100, player.hunger + 30); player.health = Math.min(100, player.health + 10); } 
+        else if (action === 'drink' && player.inventory[key] > 0) { player.inventory[key]--; player.inventory.empty_bottle++; player.thirst = Math.min(100, player.thirst + 40); player.temp -= 15; showMsg("ВЫ ВЫПИЛИ ВОДУ"); }
+        else if (action === 'drink_ice' && player.inventory[key] > 0) { player.inventory[key]--; player.inventory.empty_bottle++; player.thirst = Math.min(100, player.thirst + 50); player.coolingBuff = 1200; showMsg("ЛЕДЯНОЙ НАПИТОК ВЫПИТ"); }
+        else if (action === 'place_workbench' && player.inventory[key] > 0) { player.inventory[key]--; w.buildables.push({type: 'workbench', x: player.x, y: player.y + 40, hp: 100}); }
+        else if (action === 'place_campfire' && player.inventory[key] > 0) { player.inventory[key]--; w.buildables.push({type: 'campfire', x: player.x, y: player.y + 40, hp: 100}); }
+        else if (action === 'place_raft' && player.inventory[key] > 0) { player.inventory[key]--; w.buildables.push({type: 'raft', x: player.x, y: player.y, hp: 100}); }
+        else if (action === 'place_chest' && player.inventory[key] > 0) { player.inventory[key]--; w.buildables.push({type: 'chest', x: player.x, y: player.y + 40, hp: 100, storage: {}}); }
+        else if (action === 'place_support' && player.inventory[key] > 0) { player.inventory[key]--; w.buildables.push({type: 'wood_support', x: player.x, y: player.y, hp: 50}); showMsg("ОПОРА УСТАНОВЛЕНА"); }
+        else if (action === 'place_wood_wall' && player.inventory[key] > 0) { player.inventory[key]--; w.buildables.push({type: 'wood_wall', x: player.x, y: player.y + 40, hp: 150}); }
+        else if (action === 'place_stone_wall' && player.inventory[key] > 0) { player.inventory[key]--; w.buildables.push({type: 'stone_wall', x: player.x, y: player.y + 40, hp: 300}); }
+        else if (action === 'place_door' && player.inventory[key] > 0) { player.inventory[key]--; w.buildables.push({type: 'wood_door', x: player.x, y: player.y + 40, hp: 150, open: false}); }
+        else if (action === 'place_planter' && player.inventory[key] > 0) { player.inventory[key]--; w.buildables.push({type: 'planter', x: player.x, y: player.y + 40, hp: 50, ready: false, growTimer: 3000}); }
+        else if (action === 'place_portal' && player.inventory[key] > 0) { player.inventory[key]--; w.buildables.push({type: 'portal', x: player.x, y: player.y + 40, hp: 2000}); showMsg("ВРАТА ПУСТОТЫ ОТКРЫТЫ!"); }
+        
+        hideTooltip(); updateUI();
+    }
+
+    function updateUI() {
+        ['resources', 'food', 'gear'].forEach(cat => { document.getElementById('grid-' + cat).innerHTML = ''; });
+        Object.keys(player.inventory).forEach(key => {
+            if(player.inventory[key] > 0) {
+                let data = itemData[key]; if(!data) return;
+                const slot = document.createElement('div'); slot.className = 'inv-slot';
+                if(data.action) slot.style.borderColor = 'rgba(46, 204, 113, 0.4)';
+                if(player.equip === key || (key.includes('armor') && player.armorTier === parseInt(key.split('_')[1])) || (key === 'arctic_coat' && player.armorTier === 4)) { slot.style.borderColor = 'var(--blue)'; slot.style.background = '#444'; }
+                let iconSrc = getGeneratedIcon(key);
+                slot.innerHTML = `<img src="${iconSrc}" class="item-icon"><span class="slot-count">${player.inventory[key]}</span>`;
+                slot.onmouseenter = (e) => showTooltip(e, key); slot.onmouseleave = hideTooltip; slot.onclick = () => handleItemClick(key);
+                document.getElementById('grid-' + data.cat).appendChild(slot);
+            }
+        });
+        document.getElementById('inv-equip').innerText = itemData[player.equip]?.name || 'Руки';
+        let arName = ['Нет', 'Кожаная (I)', 'Костяная (II)', 'Алмазная (III)', 'Арктическая (IV)']; document.getElementById('inv-clothes').innerText = arName[player.armorTier];
+        document.getElementById('btn-cook').disabled = !(w.buildables.some(b => b.type === 'campfire' && distSq(player.x, player.y, b.x, b.y) < 3600) && (player.inventory.meat > 0 || player.inventory.mushroom > 0));
+    }
+
+    function craft(item) {
+        if(!gameRunning || isGameOver || isPaused || showMap) return;
+        let needsWorkbench = ['sword', 'bow', 'arrow', 'iron_pickaxe', 'iron_sword', 'diamond_sword', 'armor_3', 'ice_sword', 'harpoon', 'storm_pickaxe', 'grappling_hook', 'fire_staff', 'lightning_staff', 'portal'].includes(item);
+        if (needsWorkbench && !w.buildables.some(b => b.type === 'workbench' && distSq(player.x, player.y, b.x, b.y) < 10000)) { showMsg("ДАЛЕКО ОТ ВЕРСТАКА!"); return; }
+
+        let inv = player.inventory; let success = false;
+        if (item === 'axe' && inv.wood >= 10 && inv.stone >= 5) { inv.wood -= 10; inv.stone -= 5; inv.axe = 1; success = true; } 
+        else if (item === 'pickaxe' && inv.wood >= 10 && inv.stone >= 10) { inv.wood -= 10; inv.stone -= 10; inv.pickaxe = 1; success = true; } 
+        else if (item === 'spear' && inv.wood >= 15 && inv.stone >= 2 && inv.fibers >= 5) { inv.wood -= 15; inv.stone -= 2; inv.fibers -= 5; inv.spear = 1; success = true; } 
+        else if (item === 'sword' && inv.wood >= 15 && inv.stone >= 15) { inv.wood -= 15; inv.stone -= 15; inv.sword = 1; success = true; }
+        else if (item === 'iron_pickaxe' && inv.wood >= 10 && inv.iron >= 10) { inv.wood -= 10; inv.iron -= 10; inv.iron_pickaxe = 1; success = true; }
+        else if (item === 'storm_pickaxe' && inv.iron_pickaxe >= 1 && inv.ancient_dust >= 3) { inv.iron_pickaxe -= 1; inv.ancient_dust -= 3; inv.storm_pickaxe = 1; success = true; }
+        else if (item === 'grappling_hook' && inv.iron >= 10 && inv.fibers >= 10) { inv.iron -= 10; inv.fibers -= 10; inv.grappling_hook = 1; success = true; }
+        else if (item === 'fire_staff' && inv.wood >= 20 && inv.ancient_dust >= 10) { inv.wood -= 20; inv.ancient_dust -= 10; inv.fire_staff = 1; success = true; }
+        else if (item === 'lightning_staff' && inv.gold >= 5 && inv.diamond >= 10 && inv.ancient_dust >= 5) { inv.gold -= 5; inv.diamond -= 10; inv.ancient_dust -= 5; inv.lightning_staff = 1; success = true; }
+        else if (item === 'iron_sword' && inv.wood >= 10 && inv.iron >= 15) { inv.wood -= 10; inv.iron -= 15; inv.iron_sword = 1; success = true; }
+        else if (item === 'diamond_sword' && inv.diamond >= 15 && inv.gold >= 5) { inv.diamond -= 15; inv.gold -= 5; inv.diamond_sword = 1; success = true; }
+        else if (item === 'ice_sword' && inv.frozen_wood >= 10 && inv.ice_crystal >= 10) { inv.frozen_wood -= 10; inv.ice_crystal -= 10; inv.ice_sword = 1; success = true; }
+        else if (item === 'harpoon' && inv.frozen_wood >= 5 && inv.iron >= 2) { inv.frozen_wood -= 5; inv.iron -= 2; inv.harpoon = 1; success = true; }
+        else if (item === 'bow' && inv.wood >= 15 && inv.fibers >= 10) { inv.wood -= 15; inv.fibers -= 10; inv.bow = 1; success = true; }
+        else if (item === 'arrow' && inv.wood >= 5 && inv.stone >= 1) { inv.wood -= 5; inv.stone -= 1; inv.arrow = (inv.arrow||0) + 5; success = true; }
+        else if (item === 'armor_1' && inv.pelt >= 5) { inv.pelt -= 5; inv.armor_1 = 1; player.armorTier = 1; success = true; } 
+        else if (item === 'armor_2' && inv.pelt >= 5 && inv.bone >= 10) { inv.pelt -= 5; inv.bone -= 10; inv.armor_2 = 1; player.armorTier = 2; success = true; } 
+        else if (item === 'armor_3' && inv.diamond >= 20 && inv.gold >= 10) { inv.diamond -= 20; inv.gold -= 10; inv.armor_3 = 1; player.armorTier = 3; success = true; }
+        else if (item === 'arctic_coat' && inv.pelt >= 10 && inv.ice_crystal >= 5) { inv.pelt -= 10; inv.ice_crystal -= 5; inv.arctic_coat = 1; player.armorTier = 4; success = true; }
+        else if (item === 'gas_mask' && inv.pelt >= 5 && inv.fibers >= 5 && inv.iron >= 2) { inv.pelt -= 5; inv.fibers -= 5; inv.iron -= 2; inv.gas_mask = 1; success = true; }
+        else if (item === 'headlamp' && inv.iron >= 5 && inv.fibers >= 10 && inv.ice_crystal >= 2) { inv.iron -= 5; inv.fibers -= 10; inv.ice_crystal -= 2; inv.headlamp = 1; success = true; }
+        else if (item === 'wood_support' && inv.wood >= 10) { inv.wood -= 10; inv.wood_support = (inv.wood_support||0)+1; success = true; }
+        else if (item === 'wood_wall' && inv.wood >= 10) { inv.wood -= 10; inv.wood_wall = (inv.wood_wall||0)+1; success = true; }
+        else if (item === 'stone_wall' && inv.stone >= 10) { inv.stone -= 10; inv.stone_wall = (inv.stone_wall||0)+1; success = true; }
+        else if (item === 'wood_door' && inv.wood >= 15) { inv.wood -= 15; inv.wood_door = (inv.wood_door||0)+1; success = true; }
+        else if (item === 'planter' && inv.wood >= 10 && inv.berries >= 5) { inv.wood -= 10; inv.berries -= 5; inv.planter = (inv.planter||0)+1; success = true; }
+        else if (item === 'flippers' && inv.shark_scale >= 5 && inv.fibers >= 5) { inv.shark_scale -= 5; inv.fibers -= 5; inv.flippers = 1; success = true; }
+        else if (item === 'bandage' && inv.fibers >= 10) { inv.fibers -= 10; inv.bandage = (inv.bandage||0)+1; success = true; }
+        else if (item === 'empty_bottle' && inv.wood >= 5) { inv.wood -= 5; inv.empty_bottle = (inv.empty_bottle||0)+1; success = true; }
+        else if (item === 'ice_drink' && inv.water_bottle >= 1 && inv.ice_crystal >= 2 && inv.berries >= 2) { inv.water_bottle -= 1; inv.ice_crystal -= 2; inv.berries -= 2; inv.ice_drink = (inv.ice_drink||0)+1; success = true; }
+        else if (item === 'campfire' && inv.wood >= 15 && inv.stone >= 10) { inv.wood -= 15; inv.stone -= 10; inv.campfire = (inv.campfire||0)+1; success = true; }
+        else if (item === 'workbench' && inv.wood >= 20 && inv.stone >= 10) { inv.wood -= 20; inv.stone -= 10; inv.workbench = (inv.workbench||0)+1; success = true; }
+        else if (item === 'torch' && inv.wood >= 5 && inv.fibers >= 2) { inv.wood -= 5; inv.fibers -= 2; inv.torch = 1; success = true; }
+        else if (item === 'portal' && inv.ancient_dust >= 20 && inv.diamond >= 20 && inv.gold >= 20 && inv.ice_crystal >= 20) { inv.ancient_dust -= 20; inv.diamond -= 20; inv.gold -= 20; inv.ice_crystal -= 20; inv.portal = (inv.portal||0)+1; success = true; }
+        else if (item === 'cook') { if(inv.meat > 0) { inv.meat -= 1; inv.cookedMeat = (inv.cookedMeat||0) + 1; success = true; } else if(inv.mushroom > 0) { inv.mushroom -= 1; inv.cookedMushroom = (inv.cookedMushroom||0) + 1; success = true; } }
+        else if (item === 'raft' && inv.wood >= 20 && inv.fibers >= 10) { inv.wood -= 20; inv.fibers -= 10; inv.raft = (inv.raft||0)+1; success = true; }
+        else if (item === 'chest' && inv.wood >= 15 && inv.stone >= 5) { inv.wood -= 15; inv.stone -= 5; inv.chest = (inv.chest||0)+1; success = true; }
+        
+        if(success) { spawnParticles(player.x, player.y, '#f1c40f', 20); updateUI(); }
+    }
+
+    spawnWorld(); updateUI();
+    
+    function gameLoop() { 
+        if(!isPaused && !showMap) {
+            update(); 
+        }
+        draw(); 
+        if(showMap) updateFullscreenMap(); // Динамическая отрисовка игрока на открытой карте
+        
+        requestAnimationFrame(gameLoop); 
+    }
+    requestAnimationFrame(gameLoop);
+
+</script>
+</body>
+</html>
